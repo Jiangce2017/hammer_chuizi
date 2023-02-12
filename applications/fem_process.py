@@ -19,7 +19,7 @@ from jax_am.fem.utils import save_sol
 from applications.fem.thermal.models import Thermal, initialize_hash_map, update_hash_map, get_active_mesh
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-data_dir = os.path.join(os.path.dirname(__file__), 'data') 
+data_dir = os.path.join(Path.home(), 'data','hammer') 
 
 
 def ded_cad_model(parameter_json_file, problem_name):
@@ -46,8 +46,6 @@ def ded_cad_model(parameter_json_file, problem_name):
     ele_type = 'HEX8'
     #problem_name = "geo_test_cone_mesh"
     
-    dt = 0.2
-    
     femfile_dir = osp.join(data_dir,"meshes",problem_name)
     files = glob.glob(osp.join(femfile_dir, f'*'))
     
@@ -59,6 +57,7 @@ def ded_cad_model(parameter_json_file, problem_name):
         fem_points = fem_file["vertices"]
         hexahedron = fem_file["hexahedra"]
         dx = fem_file["dx"]
+        dt = fem_file["dt"]
         sampled_deposits = fem_file["sampled_deposits"]
 
         vtk_dir = os.path.join(data_dir,"vtk",problem_name,Path(f).stem)
@@ -145,17 +144,18 @@ def ded_cad_model(parameter_json_file, problem_name):
                 print(f"New elements born")
                 problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))
-            sol = solver(problem, linear=True)
-            problem.update_int_vars(sol)
-            full_sol = full_sol.at[points_map_active].set(sol)
-            j=0
-            vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
-            if i in sampled_deposits:
-                if i>0:
+            
+                if i in sampled_deposits:
                     save_sol(problem, sol_old, vtk_path_old)
+                    
+                    sol = solver(problem, linear=True)
+                    problem.update_int_vars(sol)
+                    full_sol = full_sol.at[points_map_active].set(sol)
+                    j=0
+                    vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
                     save_sol(problem, sol, vtk_path)
-            sol_old = sol
-            vtk_path_old = vtk_path
+                sol_old = sol
+                vtk_path_old = vtk_path
 
             active_cell_truth_tab_old = active_cell_truth_tab
         t2 = default_timer()

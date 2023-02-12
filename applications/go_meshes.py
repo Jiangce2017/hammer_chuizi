@@ -11,7 +11,8 @@ import glob
 from hammer import GeoReader
 from hammer.utilities.plotting import plot_element_adding
 
-data_dir = osp.join(Path.home(), 'data','hammer')
+#data_dir = osp.join(Path.home(), 'data','hammer')
+data_dir = osp.join('/mnt/c/Users/jiang', 'data','hammer')
 
 def go_meshes(args):
     #parameter_json_file = osp.join(data_dir, "base_20.json")
