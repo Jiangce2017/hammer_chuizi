@@ -1,0 +1,6 @@
+numpy
+scipy
+trimesh
+matplotlib
+pytictoc
+pickle
