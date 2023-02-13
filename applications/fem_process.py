@@ -50,11 +50,11 @@ def ded_cad_model(parameter_json_file, problem_name):
     files = glob.glob(osp.join(femfile_dir, f'*'))
     
     t1 = default_timer()
-    for i,f in enumerate(files[0]):
+    for i,f in enumerate(files):
         fem_file = pickle.load( open(f, "rb" ) )   
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
-        fem_points = fem_file["vertices"]
+        fem_points = fem_file["extend_vertices"]
         hexahedron = fem_file["hexahedra"]
         dx = fem_file["dx"]
         dt = fem_file["dt"]
@@ -167,5 +167,5 @@ def ded_cad_model(parameter_json_file, problem_name):
 
 if __name__ == "__main__":
     parameter_json_file = "./am_parameters.json"
-    problem_name = "small_10_base_10"
+    problem_name = "extend_small_10_base_10"
     ded_cad_model(parameter_json_file,problem_name)
