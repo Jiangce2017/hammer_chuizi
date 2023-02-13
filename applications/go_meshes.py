@@ -11,8 +11,8 @@ import glob
 from hammer import GeoReader
 from hammer.utilities.plotting import plot_element_adding
 
-#data_dir = osp.join(Path.home(), 'data','hammer')
-data_dir = osp.join('/mnt/c/Users/jiang', 'data','hammer')
+data_dir = osp.join(Path.home(), 'data','hammer')
+#data_dir = osp.join('/mnt/c/Users/jiang', 'data','hammer')
 
 def go_meshes(args):
     #parameter_json_file = osp.join(data_dir, "base_20.json")
@@ -37,12 +37,14 @@ def go_meshes(args):
     for i,f in enumerate(files):
         geo_reader.load_file(f)
         geo_reader.voxelize()
+        geo_reader.extend_base(5)
         geo_reader.generate_part_toolpath('zigzag')
         geo_reader.generate_hexahedron_cells()
         geo_reader.sample_deposits(num_samples)
         save_file_path = osp.join(femfile_dir, Path(f).stem+"_mesh.p")
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
+        #geo_reader.plot_fem_mesh()
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
