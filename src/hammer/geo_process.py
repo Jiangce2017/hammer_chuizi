@@ -112,7 +112,8 @@ class GeoReader(object):
         extend_ratio = 1.6
         xy_len = extend_ratio*(bounds[1,:2]-bounds[0,:2])
         #xy_len = extend_ratio*self._dx*self._nx
-        self._base_thickness = self._dx*self._nx*0.2
+        #self._base_thickness = self._dx*self._nx*0.2
+        self._base_thickness = self._dx*3
         base = trimesh.creation.box((xy_len[0], xy_len[1], self._base_thickness)) ### we can have an identical base for creating dataset
         #base = trimesh.creation.box((xy_len, xy_len, self._base_thickness))
         
@@ -128,9 +129,11 @@ class GeoReader(object):
         
         self._geo_mesh = trimesh.boolean.union([self._geo_mesh, base])
         
-    def extend_base(self,ratio):
+    def extend_base(self,depth):
         base_mask = self._hex_mesh_points[:,2] < 0
         base_points = self._hex_mesh_points[base_mask]
+        
+        ratio = depth/np.abs(np.min(base_points[:,2]))
         base_points[:,2] = base_points[:,2]*ratio
         self._extended_hex_mesh_points = self._hex_mesh_points.copy()
         self._extended_hex_mesh_points[base_mask] = base_points

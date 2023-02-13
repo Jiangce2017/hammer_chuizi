@@ -14,8 +14,6 @@ import os
 import glob
 from pathlib import Path
 import argparse
-
-from hammer import generate_hex_mesh_toolpath
 from hammer.utilities.plotting import plot_element_adding, plot_toolpath,plot_toolpath_with_voxels
 
 # prepare data file for Bjorn
@@ -38,11 +36,10 @@ def prepare_bjorn_data(args):
         for ff in bjorn_files:
             os.remove(ff)
     
-        vertices, cells, toolpath, sampled_deposits = fem_file["vertices"],fem_file["hexahedra"], fem_file["toolpath"],\
+        vertices, cells, toolpath, sampled_deposits = fem_file["extend_vertices"],fem_file["hexahedra"], fem_file["toolpath"],\
             fem_file['sampled_deposits']
         cells = cells + 1 ### for matlab 
     
-        vertices = vertices
         toolpath[:, 1:4] = toolpath[:, 1:4]
         
         node_ind = np.expand_dims(np.arange(vertices.shape[0])+1, axis=1)   
