@@ -37,14 +37,15 @@ def go_meshes(args):
     for i,f in enumerate(files):
         geo_reader.load_file(f)
         geo_reader.voxelize()
-        geo_reader.extend_base(5)
+        geo_reader.extend_base(50e-3)
         geo_reader.generate_part_toolpath('zigzag')
         geo_reader.generate_hexahedron_cells()
         geo_reader.sample_deposits(num_samples)
         save_file_path = osp.join(femfile_dir, Path(f).stem+"_mesh.p")
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
-        #geo_reader.plot_fem_mesh()
+        # if i == 0:
+            # geo_reader.plot_fem_mesh()
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
