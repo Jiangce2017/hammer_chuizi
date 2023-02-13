@@ -127,6 +127,13 @@ class GeoReader(object):
         base.apply_transform(matrix)
         
         self._geo_mesh = trimesh.boolean.union([self._geo_mesh, base])
+        self._extend_base()
+        
+    def _extend_base(self):
+        base_mask = self._hex_mesh_points[:,2] < 0
+        base_points = self._hex_mesh_points[base_mask]
+        base_points[:,2] = base_points[:,2]*2
+        self._hex_mesh_points[base_mask] = base_points
         
     def voxelize(self):
         self._voxels = self._geo_mesh.voxelized(self._dx, method='subdivide').fill()

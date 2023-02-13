@@ -19,7 +19,7 @@ from jax_am.fem.utils import save_sol
 from applications.fem.thermal.models import Thermal, initialize_hash_map, update_hash_map, get_active_mesh
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-data_dir = os.path.join(Path.home(), 'data','hammer') 
+data_dir = os.path.join('/mnt/c/Users/jiang', 'data','hammer') 
 
 
 def ded_cad_model(parameter_json_file, problem_name):
@@ -50,7 +50,7 @@ def ded_cad_model(parameter_json_file, problem_name):
     files = glob.glob(osp.join(femfile_dir, f'*'))
     
     t1 = default_timer()
-    for i,f in enumerate(files):
+    for i,f in enumerate(files[0]):
         fem_file = pickle.load( open(f, "rb" ) )   
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
@@ -116,8 +116,8 @@ def ded_cad_model(parameter_json_file, problem_name):
                 problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))
                 for j in range(n_step-1):
-                    print(f"\n############################################################")
-                    print(f"Laser off: i = {i} in {toolpath.shape[0]} , j = {j} in {num_laser_off}")
+                    #print(f"\n############################################################")
+                    #print(f"Laser off: i = {i} in {toolpath.shape[0]} , j = {j} in {num_laser_off}")
                     # old_sol = full_sol[points_map_active]
                     # problem.old_sol = old_sol
                     sol = solver(problem, linear=True)
@@ -129,7 +129,7 @@ def ded_cad_model(parameter_json_file, problem_name):
                     #save_sol(problem, sol, vtk_path)
             num_laser_on = 1
             laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
-            print(f"laser center = {laser_center}")   
+            #print(f"laser center = {laser_center}")   
             flag_1 = centroids[:, 2] < laser_center[2]+ dx/4
             flag_2 = (centroids[:, 0] - laser_center[0])**2 + (centroids[:, 1] - laser_center[1])**2 <= rb**2
             active_cell_truth_tab = onp.logical_or(active_cell_truth_tab, onp.logical_and(flag_1, flag_2))
@@ -142,17 +142,19 @@ def ded_cad_model(parameter_json_file, problem_name):
                         # problem.old_sol = old_sol
             else:
                 print(f"New elements born")
-                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
-                                  additional_info=(sol, rho, Cp, dt, external_faces))
+                
             
                 if i in sampled_deposits:
-                    save_sol(problem, sol_old, vtk_path_old)
-                    
-                    sol = solver(problem, linear=True)
-                    problem.update_int_vars(sol)
-                    full_sol = full_sol.at[points_map_active].set(sol)
-                    j=0
-                    vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
+                    if i > 0:
+                        save_sol(problem, sol_old, vtk_path_old)
+                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
+                                  additional_info=(sol, rho, Cp, dt, external_faces))    
+                sol = solver(problem, linear=True)
+                problem.update_int_vars(sol)
+                full_sol = full_sol.at[points_map_active].set(sol)
+                j=0
+                vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
+                if i in sampled_deposits:
                     save_sol(problem, sol, vtk_path)
                 sol_old = sol
                 vtk_path_old = vtk_path
@@ -165,5 +167,5 @@ def ded_cad_model(parameter_json_file, problem_name):
 
 if __name__ == "__main__":
     parameter_json_file = "./am_parameters.json"
-    problem_name = "small_10_base_20"
+    problem_name = "small_10_base_10"
     ded_cad_model(parameter_json_file,problem_name)
