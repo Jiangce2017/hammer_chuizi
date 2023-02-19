@@ -1,6 +1,6 @@
 import numpy as onp
 import jax
-import jax.numpy as np
+import jax.numpy as 
 import os
 import os.path as osp
 import glob
@@ -18,10 +18,14 @@ from jax_am.fem.utils import save_sol
 
 from applications.fem.thermal.models import Thermal, initialize_hash_map, update_hash_map, get_active_mesh
 
+from memory_profiler import profile
+import tracemalloc
+import gc
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 data_dir = os.path.join('/mnt/c/Users/jiang', 'data','hammer') 
 
-
+#@profile
 def ded_cad_model(parameter_json_file, problem_name):
     #### generate activation time list as well
     
@@ -50,7 +54,7 @@ def ded_cad_model(parameter_json_file, problem_name):
     files = glob.glob(osp.join(femfile_dir, f'*'))
     
     t1 = default_timer()
-    for i,f in enumerate(files[9:]):
+    for i,f in enumerate(files[:1]):
         fem_file = pickle.load( open(f, "rb" ) )   
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
@@ -87,13 +91,15 @@ def ded_cad_model(parameter_json_file, problem_name):
             d2 = (point[0] - laser_center[0])**2 + (point[1] - laser_center[1])**2
             q_laser = 2*eta*P/(np.pi*rb**2) * np.exp(-2*d2/rb**2)
             q = q_laser
-            return np.array([q])
+            #return np.array([q])
+            return np.expand_dims(q,axis=0)
 
         def neumann_walls(point, old_T):
             # q is the heat flux into the domain
             q_conv = h*(T0 - old_T[0])
             q = q_conv
-            return np.array([q])
+            #return np.array([q])
+            return np.expand_dims(q,axis=0)
 
         neumann_bc_info_laser_on = [None, [neumann_walls, neumann_top]]
         neumann_bc_info_laser_off = [None, [neumann_walls]]
@@ -112,7 +118,7 @@ def ded_cad_model(parameter_json_file, problem_name):
                 activation_time[i,0] = dt*n_step + activation_time[i-1,0]
             if n_step > 1:
                 num_laser_off = n_step-1
-                sol = full_sol[points_map_active] 
+                sol = full_sol[points_map_active]
                 problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))
                 for j in range(n_step-1):
@@ -120,12 +126,10 @@ def ded_cad_model(parameter_json_file, problem_name):
                     #print(f"Laser off: i = {i} in {toolpath.shape[0]} , j = {j} in {num_laser_off}")
                     # old_sol = full_sol[points_map_active]
                     # problem.old_sol = old_sol
-                    sol = solver(problem, linear=True)
+                    sol = solver(problem, linear=True,use_petsc=True)
                     problem.update_int_vars(sol)
                     full_sol = full_sol.at[points_map_active].set(sol)
-                    vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
-                    sol_old = sol
-                    vtk_path_old = vtk_path
+                    #vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
                     #save_sol(problem, sol, vtk_path)
             num_laser_on = 1
             laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
@@ -141,31 +145,46 @@ def ded_cad_model(parameter_json_file, problem_name):
                         print(f"No element born")
                         # problem.old_sol = old_sol
             else:
-                print(f"New elements born")
-                
-            
-                if i in sampled_deposits:
-                    if i > 0:
-                        save_sol(problem, sol_old, vtk_path_old)
-                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
+                #print(f"New elements born {i}")        
+                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))    
-                sol = solver(problem, linear=True)
+                sol = solver(problem, linear=True,use_petsc=True)
                 problem.update_int_vars(sol)
                 full_sol = full_sol.at[points_map_active].set(sol)
                 j=0
                 vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
                 if i in sampled_deposits:
                     save_sol(problem, sol, vtk_path)
-                sol_old = sol
-                vtk_path_old = vtk_path
+                    print(f"save {i} deposition")
 
             active_cell_truth_tab_old = active_cell_truth_tab
+            gc.collect()
+            
         t2 = default_timer()
-        print("{} sec to compute one model".format(t2-t1))        
+        print("{} sec to compute one model".format(t2-t1))      
         onp.savetxt(osp.join(vtk_dir, Path(f).stem+"_activation_time.txt"), activation_time, delimiter=',')
     
 
 if __name__ == "__main__":
     parameter_json_file = "./am_parameters.json"
-    problem_name = "extend_small_10_base_10"
+    problem_name = "extend_small_10_base_20"
+    
+    
+    
+    tracemalloc.start()
     ded_cad_model(parameter_json_file,problem_name)
+    
+    
+    print("No.of tracked objects before calling get method")
+    print(len( gc.get_objects() ) )
+    gc.collect()
+ 
+    print("No.of tracked objects after removing non-referenced objects")
+    print(len( gc.get_objects() ) )
+ 
+    
+    # displaying the memory
+    print(tracemalloc.get_traced_memory())
+     
+    # stopping the library
+    tracemalloc.stop()                                                                                                                                                                                                      

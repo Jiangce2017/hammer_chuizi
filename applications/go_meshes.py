@@ -54,4 +54,3 @@ if __name__ == "__main__":
     parser.add_argument("--mesh_parameters", type=str, required=True)
     args = parser.parse_args()    
     go_meshes(args)
-
