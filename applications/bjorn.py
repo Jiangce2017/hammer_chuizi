@@ -38,9 +38,20 @@ def prepare_bjorn_data(args):
     
         vertices, cells, toolpath, sampled_deposits = fem_file["extend_vertices"],fem_file["hexahedra"], fem_file["toolpath"],\
             fem_file['sampled_deposits']
+        
+        ### reorder cells
+        deposit_sequence = fem_file["deposit_sequence"]
+        cell_ind_set = set(np.arange(cells.shape[0]))
+        deposit_sequence_set = set(deposit_sequence)
+        base_ind = np.array(list(cell_ind_set - deposit_sequence_set))
+        cells_reordered_ind = np.concatenate((base_ind,deposit_sequence))
+        cells = cells[cells_reordered_ind]
+                
+            
+            
         cells = cells + 1 ### for matlab 
     
-        toolpath[:, 1:4] = toolpath[:, 1:4]
+        #toolpath[:, 1:4] = toolpath[:, 1:4]
         
         node_ind = np.expand_dims(np.arange(vertices.shape[0])+1, axis=1)   
         nodes_list = np.concatenate((node_ind, vertices),axis=1)   
@@ -61,6 +72,14 @@ def prepare_bjorn_data(args):
         
         sampled_timesteps = np.zeros(cells.shape[0],dtype=np.int32)
         sampled_timesteps[sampled_deposits+num_base] = 1        
+        
+        # centers = np.mean(vertices[cells-1],axis=1)
+        # ax = plt.axes(projection='3d')
+        # ax.scatter3D(centers[:,0], centers[:,1], centers[:,2], c=activation_time, cmap='Greens')
+        # ax.set_xlabel('x')
+        # ax.set_ylabel('y')
+        # ax.set_zlabel('z')
+        # plt.show()
         
         np.savetxt(osp.join(bjorn_dir, problem_name+"_nodes.txt"), nodes_list, delimiter=',')
         np.savetxt(osp.join(bjorn_dir, problem_name+"_cells.txt"), cell_list, fmt='%d', delimiter=',')

@@ -34,7 +34,7 @@ def go_meshes(args):
         os.remove(f)
 
     geo_reader = GeoReader(dx,nx,Add_base)
-    files = glob.glob(os.path.join(geo_dir, f'*'))
+    files = glob.glob(os.path.join(geo_dir, f'*.stl'))
     for i,f in enumerate(files):
         geo_reader.load_file(f)
         geo_reader.voxelize()
@@ -46,7 +46,9 @@ def go_meshes(args):
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
         # if i == 0:
-            # geo_reader.plot_fem_mesh()
+            # #geo_reader.plot_fem_mesh()
+            # toolpath = geo_reader.get_toolpath()
+            # geo_reader.plot_part_toolpath(toolpath)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
