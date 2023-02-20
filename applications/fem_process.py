@@ -1,6 +1,6 @@
 import numpy as onp
 import jax
-import jax.numpy as 
+import jax.numpy as np
 import os
 import os.path as osp
 import glob
