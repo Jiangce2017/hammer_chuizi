@@ -18,9 +18,9 @@ def preprocess_data(w_size,problem_name):
     # load voxels # load ele_sequence
 
     #problem_name = "cone_with_base"
-    femfile_dir = osp.join(data_dir,"meshes","extend_base","small_10_base_10")
+    femfile_dir = osp.join(data_dir,"meshes","extend_base","small_10_base_20")
     geo_dir = osp.join(data_dir, "geo_models","small_10") 
-    vtk_dir = osp.join(data_dir,"vtk","hollow_1_20_incomplete", problem_name)
+    vtk_dir = osp.join(data_dir,"vtk",problem_name, problem_name)
     
     ml_data_dir = osp.join(data_dir,"ml_data",problem_name)
     os.makedirs(ml_data_dir, exist_ok=True)
@@ -71,65 +71,63 @@ def preprocess_data(w_size,problem_name):
     u = []
     laser_flag = 0
     for i_deposit in range(deposit_pairs.shape[0]):
-        if deposit_pairs[i_deposit,1] <=1658:
-            
-            
-            vtk_path_00 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,0]):05d}_active_{0:05d}.vtu")       
-            vtk_path_01 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,1]):05d}_active_{0:05d}.vtu")
-            if os.path.isfile(vtk_path_00) and os.path.isfile(vtk_path_01):
-                print(i_deposit)
-                mesh_00 = meshio.read(vtk_path_00)
-                mesh_01 = meshio.read(vtk_path_01)
+        #if deposit_pairs[i_deposit,1] <=1658:
+        vtk_path_00 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,0]):05d}_active_{0:05d}.vtu")       
+        vtk_path_01 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,1]):05d}_active_{0:05d}.vtu")
+        if os.path.isfile(vtk_path_00) and os.path.isfile(vtk_path_01):
+            print(i_deposit)
+            mesh_00 = meshio.read(vtk_path_00)
+            mesh_01 = meshio.read(vtk_path_01)
 
-                sol_00 = mesh_00.point_data['sol']
-                cells_00 = mesh_00.cells_dict['hexahedron']
-                points_00 = mesh_00.points
-                
-                points_00[points_00[:,2]<0,:] = points_00[points_00[:,2]<0,:]*ratio
-                centeroids_00 = np.mean(points_00[cells_00],axis=1)
-                centeroids_00_min = np.min(centeroids_00,axis=0,keepdims=True)
-                ### from local to global indices
-                inds_00 = np.round((centeroids_00-centeroids_00_min)/dx).astype(int)
-                sol_00_center = np.mean(sol_00[cells_00],axis=1)
-                sol_global_00[inds_00[:,[0]],inds_00[:,[1]],inds_00[:,[2]]] = sol_00_center ###only works when the model is placed on a base?
-                
-                i = deposit_pairs[i_deposit,1]
-                ### update the heat source
-                laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
-                heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00
-                #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
-                
-                sol_01 = mesh_01.point_data['sol']
-                cells_01 = mesh_01.cells_dict['hexahedron']
-                points_01 = mesh_01.points
-                points_01[points_01[:,2]<0,:] = points_01[points_01[:,2]<0,:]*ratio
-                centeroids_01 = np.mean(points_01[cells_01],axis=1)
-                centeroids_01_min = np.min(centeroids_01,axis=0,keepdims=True)
-                ### from local to global indices
-                inds_01 = np.round((centeroids_01-centeroids_01_min)/dx).astype(int)
-                sol_01_center = np.mean(sol_01[cells_01],axis=1)
-                sol_global_01[inds_01[:,[0]],inds_01[:,[1]],inds_01[:,[2]]] = sol_01_center ###only works when the model is placed on a base?
+            sol_00 = mesh_00.point_data['sol']
+            cells_00 = mesh_00.cells_dict['hexahedron']
+            points_00 = mesh_00.points
+            
+            points_00[points_00[:,2]<0,:] = points_00[points_00[:,2]<0,:]*ratio
+            centeroids_00 = np.mean(points_00[cells_00],axis=1)
+            centeroids_00_min = np.min(centeroids_00,axis=0,keepdims=True)
+            ### from local to global indices
+            inds_00 = np.round((centeroids_00-centeroids_00_min)/dx).astype(int)
+            sol_00_center = np.mean(sol_00[cells_00],axis=1)
+            sol_global_00[inds_00[:,[0]],inds_00[:,[1]],inds_00[:,[2]]] = sol_00_center ###only works when the model is placed on a base?
+            
+            i = deposit_pairs[i_deposit,1]
+            ### update the heat source
+            laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
+            heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00
+            #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
+            
+            sol_01 = mesh_01.point_data['sol']
+            cells_01 = mesh_01.cells_dict['hexahedron']
+            points_01 = mesh_01.points
+            points_01[points_01[:,2]<0,:] = points_01[points_01[:,2]<0,:]*ratio
+            centeroids_01 = np.mean(points_01[cells_01],axis=1)
+            centeroids_01_min = np.min(centeroids_01,axis=0,keepdims=True)
+            ### from local to global indices
+            inds_01 = np.round((centeroids_01-centeroids_01_min)/dx).astype(int)
+            sol_01_center = np.mean(sol_01[cells_01],axis=1)
+            sol_global_01[inds_01[:,[0]],inds_01[:,[1]],inds_01[:,[2]]] = sol_01_center ###only works when the model is placed on a base?
 
-                i_time_frame = i-1
-                if i_time_frame > 50:
-                    for i_ele in range(i_time_frame-50,i_time_frame+1):
-                        p_ind = deposit_sequence[i_ele]
-                        v_ind = voxel_inds[p_ind]
-                        window = (ni<=v_ind[0]+w_radius) & (ni >= v_ind[0]-w_radius) & (mi <= v_ind[1]+w_radius) &\
-                            (mi >= v_ind[1]-w_radius) & (li <= v_ind[2]+w_radius) & (li >= v_ind[2]-w_radius)
-                        if sol_global_00[window].shape[0] == w_size*w_size*w_size:
-                            inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
-                            inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
-                            inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
-                            inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
-                            
-                            inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
-                            #inp = np.concatenate((inp_temp,inp_heat_info,inp_rho), axis=-1)
-                                        
-                            outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
-                            
-                            a.append([inp])
-                            u.append([outp_temp])
+            i_time_frame = i-1
+            if i_time_frame > 50:
+                for i_ele in range(i_time_frame-50,i_time_frame+1):
+                    p_ind = deposit_sequence[i_ele]
+                    v_ind = voxel_inds[p_ind]
+                    window = (ni<=v_ind[0]+w_radius) & (ni >= v_ind[0]-w_radius) & (mi <= v_ind[1]+w_radius) &\
+                        (mi >= v_ind[1]-w_radius) & (li <= v_ind[2]+w_radius) & (li >= v_ind[2]-w_radius)
+                    if sol_global_00[window].shape[0] == w_size*w_size*w_size:
+                        inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
+                        inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
+                        inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
+                        inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
+                        
+                        inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
+                        #inp = np.concatenate((inp_temp,inp_heat_info,inp_rho), axis=-1)
+                                    
+                        outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
+                        
+                        a.append([inp])
+                        u.append([outp_temp])
     
     a = np.concatenate(a, axis=0)
     print(a.shape)
