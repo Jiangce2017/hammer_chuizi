@@ -59,9 +59,11 @@ def ded_cad_model(parameter_json_file, problem_name):
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
         fem_points = fem_file["extend_vertices"]
+        #fem_points = fem_file["vertices"]
         hexahedron = fem_file["hexahedra"]
         dx = fem_file["dx"]
         dt = fem_file["dt"]
+        #dt = 0.2
         sampled_deposits = fem_file["sampled_deposits"]
 
         vtk_dir = os.path.join(data_dir,"vtk",problem_name,Path(f).stem)
@@ -146,7 +148,7 @@ def ded_cad_model(parameter_json_file, problem_name):
                         # problem.old_sol = old_sol
             else:
                 #print(f"New elements born {i}")        
-                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
+                problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))    
                 sol = solver(problem, linear=True,use_petsc=True)
                 problem.update_int_vars(sol)
