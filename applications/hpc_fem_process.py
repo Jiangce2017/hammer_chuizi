@@ -156,16 +156,16 @@ def ded_cad_model(model_name):
                     # problem.old_sol = old_sol
         else:
             #print(f"New elements born {i}")        
-            problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
+            problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
                               additional_info=(sol, rho, Cp, dt, external_faces))    
             sol = solver(problem, linear=True,use_petsc=use_petsc)
             problem.update_int_vars(sol)
             full_sol = full_sol.at[points_map_active].set(sol)
             j=0
             vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
-            if i in sampled_deposits:
-                save_sol(problem, sol, vtk_path)
-                print(f"save {i} deposition")
+            #if i in sampled_deposits:
+            save_sol(problem, sol, vtk_path)
+            print(f"save {i} deposition")
 
         active_cell_truth_tab_old = active_cell_truth_tab
         gc.collect()

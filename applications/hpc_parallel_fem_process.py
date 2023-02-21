@@ -153,7 +153,7 @@ def ded_cad_model(f):
                     # problem.old_sol = old_sol
         else:
             #print(f"New elements born {i}")        
-            problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
+            problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
                               additional_info=(sol, rho, Cp, dt, external_faces))    
             sol = solver(problem, linear=True,use_petsc=True)
             problem.update_int_vars(sol)
