@@ -28,6 +28,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 data_dir = os.path.join('/home/jic17022/', 'data','hammer') 
 
 NUM_TRHEADS = 10
+use_petsc = True
 
 parameter_json_file = osp.join(data_dir, "am_parameters.json")
 am_para = json.load(open(parameter_json_file,"rb")) 
@@ -45,7 +46,7 @@ base_plate_height = 0
 problem_name = "extend_small_10_base_20" 
 
 #@profile
-def ded_cad_model(problem_name):
+def ded_cad_model(model_name):
     #### generate activation time list as well
     
     
@@ -62,7 +63,9 @@ def ded_cad_model(problem_name):
     
     
     t1 = default_timer()
-    fem_file = pickle.load( open(f, "rb" ) )   
+    femfile_dir = osp.join(data_dir,"meshes",problem_name)
+    fem_file_name = model_name+".p"
+    fem_file = pickle.load( open(osp.join(femfile_dir,fem_file_name), "rb" ) )   
     path_dx = fem_file["dx"]
     toolpath = fem_file["toolpath"]
     fem_points = fem_file["extend_vertices"]
@@ -71,7 +74,7 @@ def ded_cad_model(problem_name):
     dt = fem_file["dt"]
     sampled_deposits = fem_file["sampled_deposits"]
 
-    vtk_dir = os.path.join(data_dir,"vtk",problem_name,Path(f).stem)
+    vtk_dir = os.path.join(data_dir,"vtk",problem_name,model_name)
     os.makedirs(vtk_dir, exist_ok=True)
     vtk_files = glob.glob(os.path.join(vtk_dir, f'*'))
     for ff in vtk_files:
@@ -133,7 +136,7 @@ def ded_cad_model(problem_name):
                 #print(f"Laser off: i = {i} in {toolpath.shape[0]} , j = {j} in {num_laser_off}")
                 # old_sol = full_sol[points_map_active]
                 # problem.old_sol = old_sol
-                sol = solver(problem, linear=True,use_petsc=True)
+                sol = solver(problem, linear=True,use_petsc=use_petsc)
                 problem.update_int_vars(sol)
                 full_sol = full_sol.at[points_map_active].set(sol)
                 #vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
@@ -155,7 +158,7 @@ def ded_cad_model(problem_name):
             #print(f"New elements born {i}")        
             problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off, 
                               additional_info=(sol, rho, Cp, dt, external_faces))    
-            sol = solver(problem, linear=True,use_petsc=True)
+            sol = solver(problem, linear=True,use_petsc=use_petsc)
             problem.update_int_vars(sol)
             full_sol = full_sol.at[points_map_active].set(sol)
             j=0
@@ -177,5 +180,6 @@ if __name__ == "__main__":
 
     femfile_dir = osp.join(data_dir,"meshes",problem_name)
     files = glob.glob(osp.join(femfile_dir, f'*'))
-    Pool(NUM_TRHEADS).imap(ded_cad_model, files) 
-    #ded_cad_model(f)                                                                                                                                                                                             
+    model_name = "hollow_1"
+    #Pool(NUM_TRHEADS).imap(ded_cad_model, files) 
+    ded_cad_model(model_name)                                                                                                                                                                                             
