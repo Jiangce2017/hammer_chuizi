@@ -54,7 +54,7 @@ def ded_cad_model(parameter_json_file, problem_name):
     files = glob.glob(osp.join(femfile_dir, f'*'))
     
     t1 = default_timer()
-    for i,f in enumerate(files[:1]):
+    for ffi,f in enumerate(files[:1]):
         fem_file = pickle.load( open(f, "rb" ) )   
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
