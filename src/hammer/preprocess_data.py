@@ -11,27 +11,34 @@ from hammer import GeoReader
 
 data_dir = os.path.join(Path.home(), 'data','hammer') 
 
-def preprocess_data(w_size,problem_name):
+def preprocess_data(w_size,model_name,bjorn=False):
     #w_size = 5
     w_radius = (w_size-1)//2
 
     # load voxels # load ele_sequence
 
-    #problem_name = "cone_with_base"
-    femfile_dir = osp.join(data_dir,"meshes","extend_base","small_10_base_20")
-    geo_dir = osp.join(data_dir, "geo_models","small_10") 
-    vtk_dir = osp.join(data_dir,"vtk",problem_name, problem_name)
+    #model_name = "cone_with_base"
+    problem_name = "small_10_base_20"
+    femfile_dir = osp.join(data_dir,"meshes",problem_name)
+    geo_dir = osp.join(data_dir, "geo_models","small_10")
+    if bjorn:
+        vtk_dir = osp.join(data_dir,"vtk",'bjorn_fem',problem_name, model_name,'vtk')
+    else:    
+        vtk_dir = osp.join(data_dir,"vtk",problem_name, model_name)
     
-    ml_data_dir = osp.join(data_dir,"ml_data",problem_name)
+    ml_data_dir = osp.join(data_dir,"ml_data",model_name)
     os.makedirs(ml_data_dir, exist_ok=True)
 
-    fem_file = pickle.load( open( osp.join(femfile_dir, problem_name+".p"), "rb" ) ) 
+    fem_file = pickle.load( open( osp.join(femfile_dir, model_name+".p"), "rb" ) ) 
 
     voxel_inds, deposit_sequence, toolpath = fem_file["voxel_inds"], fem_file["deposit_sequence"], fem_file["toolpath"]
     dx = fem_file["dx"]
     nx = fem_file["nx"]
     Add_base = fem_file["Add_base"]
     path_dx = fem_file["dx"]
+    if bjorn:
+        whole_cells = fem_file["hexahedra"]
+        num_base = whole_cells.shape[0]-toolpath.shape[0]
     
     #base_depth = fem_file["base_depth"]
     base_depth = 50e-3
@@ -46,7 +53,7 @@ def preprocess_data(w_size,problem_name):
 
     ## boundary impact factor (BIF)
     geo_reader = GeoReader(dx,nx,Add_base)
-    cad_file = osp.join(geo_dir,problem_name+'.stl')
+    cad_file = osp.join(geo_dir,model_name+'.stl')
     geo_reader.load_file(cad_file)
     geo_reader.voxelize()
     bif = geo_reader.calculate_bif()
@@ -71,24 +78,36 @@ def preprocess_data(w_size,problem_name):
     u = []
     laser_flag = 0
     for i_deposit in range(deposit_pairs.shape[0]):
-        #if deposit_pairs[i_deposit,1] <=1658:
-        vtk_path_00 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,0]):05d}_active_{0:05d}.vtu")       
-        vtk_path_01 = osp.join(vtk_dir, f"u_{(deposit_pairs[i_deposit,1]):05d}_active_{0:05d}.vtu")
+        print(i_deposit)
+        if bjorn:
+            i_time_step = num_base + deposit_pairs[i_deposit,0] + 2
+            vtk_path_00 = osp.join(vtk_dir, f"T{(i_time_step):07}.vtu")       
+            vtk_path_01 = osp.join(vtk_dir, f"T{(i_time_step+1):07d}.vtu")
+        else:
+            i_time_step = deposit_pairs[i_deposit,0]
+            vtk_path_00 = osp.join(vtk_dir, f"u_{(i_time_step):05d}_active_{0:05d}.vtu")       
+            vtk_path_01 = osp.join(vtk_dir, f"u_{(i_time_step+1):05d}_active_{0:05d}.vtu")
         if os.path.isfile(vtk_path_00) and os.path.isfile(vtk_path_01):
-            print(i_deposit)
+            print(i_time_step)
             mesh_00 = meshio.read(vtk_path_00)
             mesh_01 = meshio.read(vtk_path_01)
 
-            sol_00 = mesh_00.point_data['sol']
+            
             cells_00 = mesh_00.cells_dict['hexahedron']
             points_00 = mesh_00.points
+            if bjorn:
+                points_00 /= 1e3
             
             points_00[points_00[:,2]<0,:] = points_00[points_00[:,2]<0,:]*ratio
             centeroids_00 = np.mean(points_00[cells_00],axis=1)
             centeroids_00_min = np.min(centeroids_00,axis=0,keepdims=True)
             ### from local to global indices
             inds_00 = np.round((centeroids_00-centeroids_00_min)/dx).astype(int)
-            sol_00_center = np.mean(sol_00[cells_00],axis=1)
+            if bjorn:
+                sol_00_center = np.expand_dims(mesh_00.cell_data['T'][0],axis=1)
+            else:
+                sol_00 = mesh_00.point_data['sol']
+                sol_00_center = np.mean(sol_00[cells_00],axis=1)
             sol_global_00[inds_00[:,[0]],inds_00[:,[1]],inds_00[:,[2]]] = sol_00_center ###only works when the model is placed on a base?
             
             i = deposit_pairs[i_deposit,1]
@@ -97,15 +116,22 @@ def preprocess_data(w_size,problem_name):
             heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00
             #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
             
-            sol_01 = mesh_01.point_data['sol']
+            
             cells_01 = mesh_01.cells_dict['hexahedron']
             points_01 = mesh_01.points
+            if bjorn:
+                points_01 /= 1e3
             points_01[points_01[:,2]<0,:] = points_01[points_01[:,2]<0,:]*ratio
             centeroids_01 = np.mean(points_01[cells_01],axis=1)
             centeroids_01_min = np.min(centeroids_01,axis=0,keepdims=True)
             ### from local to global indices
             inds_01 = np.round((centeroids_01-centeroids_01_min)/dx).astype(int)
-            sol_01_center = np.mean(sol_01[cells_01],axis=1)
+            if bjorn:
+                sol_01_center = np.expand_dims(mesh_01.cell_data['T'][0],axis=1)
+            else:
+                sol_01 = mesh_01.point_data['sol']
+                sol_01_center = np.mean(sol_01[cells_01],axis=1)
+            
             sol_global_01[inds_01[:,[0]],inds_01[:,[1]],inds_01[:,[2]]] = sol_01_center ###only works when the model is placed on a base?
 
             i_time_frame = i-1
@@ -138,7 +164,7 @@ def preprocess_data(w_size,problem_name):
     "a":a,
     "u":u,
     }
-    pickle.dump(data, open( osp.join(ml_data_dir, problem_name+".pk"), "wb" ))
+    pickle.dump(data, open( osp.join(ml_data_dir, model_name+".pk"), "wb" ))
     
     # laser_flag = 0
     # ### read vtu

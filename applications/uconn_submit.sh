@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -J littlecooling
 #SBATCH -o littlecooling.o%j
-#SBATCH --ntasks=20
+#SBATCH --ntasks=32
 #SBATCH --partition=general
-#SBATCH --time=4:00:00
+#SBATCH --time=5:00:00
 #SBATCH --mail-type=END
 #SBATCH --mail-user=jiangce.chen@uconn.edu
 module load gcc/12.2.0

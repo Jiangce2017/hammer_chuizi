@@ -46,9 +46,7 @@ def prepare_bjorn_data(args):
         base_ind = np.array(list(cell_ind_set - deposit_sequence_set))
         cells_reordered_ind = np.concatenate((base_ind,deposit_sequence))
         cells = cells[cells_reordered_ind]
-                
-            
-            
+     
         cells = cells + 1 ### for matlab 
     
         #toolpath[:, 1:4] = toolpath[:, 1:4]
