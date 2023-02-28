@@ -25,7 +25,8 @@ from multiprocessing import Pool
 import gc
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-data_dir = os.path.join('/home/jic17022/', 'data','hammer') 
+#data_dir = os.path.join('/home/jic17022/', 'data','hammer')
+data_dir = os.path.join('/home/jiangcec/', 'data','hammer')  
 
 NUM_TRHEADS = 10
 use_petsc = True
@@ -43,7 +44,7 @@ eta = float(am_para["eta"])
 P = float(am_para["P"])
 base_plate_height = 0 
 
-problem_name = "extend_small_10_base_20" 
+problem_name = "small_10_base_20" 
 
 #@profile
 def ded_cad_model(model_name):
