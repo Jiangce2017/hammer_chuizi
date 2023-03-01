@@ -97,3 +97,30 @@ def plot_toolpath_with_voxels(toolpath, voxels):
                 marker = 'o')
     
     plt.show()
+    
+def plot_test_voxel(voxel):
+    max_inds = np.max(voxel_inds,axis=0)
+    max_coord = np.max(max_inds)
+
+    x,y,z = np.indices((max_inds[0]+1,max_inds[1]+1,max_inds[2]+1))
+    colors = np.empty(x.shape,dtype=object)
+
+    cube_i = np.empty(x.shape,dtype=bool)& False
+    
+    cube_base = z <= base_ind
+    colors[cube_base] = 'blue'
+    
+    images = []
+    for i in range(deposit_sequence.shape[0]):
+        p_ind = deposit_sequence[i]
+        cube_i = cube_i |( (x==voxel_inds[p_ind,0])&(y==voxel_inds[p_ind,1])&(z==voxel_inds[p_ind,2]))
+        if i % subsample == 0:
+            colors[cube_i] = 'red'
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='3d')
+            ax.voxels(cube_i|cube_base,facecolors=colors, edgecolor='k')
+            ax.set_xlim(0,max_coord)
+            ax.set_ylim(0,max_coord)
+            ax.set_zlim(0,max_coord)
+            plt.show()
+        

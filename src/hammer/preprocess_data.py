@@ -11,7 +11,7 @@ from hammer import GeoReader
 
 data_dir = os.path.join(Path.home(), 'data','hammer') 
 
-def preprocess_data(w_size,model_name,resolution,bjorn=False):
+def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     #w_size = 5
     w_radius = (w_size-1)//2
 
@@ -143,28 +143,27 @@ def preprocess_data(w_size,model_name,resolution,bjorn=False):
             sol_global_01[inds_01[:,[0]]+x_shift,inds_01[:,[1]]+y_shift,inds_01[:,[2]]+z_shift] = sol_01_center ###only works when the model is placed on a base?
 
             i_time_frame = i-1
-            if i_time_frame > 50:
-                i_load = 0
-                for i_ele in range(i_time_frame-50,i_time_frame+1):
-                    p_ind = deposit_sequence[i_ele]
-                    v_ind = voxel_inds[p_ind]
-                    window = (ni<=v_ind[0]+x_shift+w_radius) & (ni >= v_ind[0]+x_shift-w_radius) & \
-                        (mi <= v_ind[1]+y_shift+w_radius) &(mi >= v_ind[1]+y_shift-w_radius) & \
-                        (li <= v_ind[2]+z_shift+w_radius) & (li >= v_ind[2]+z_shift-w_radius)
-                    #print(sol_global_00[window].shape[0])
-                    if sol_global_00[window].shape[0] == w_size*w_size*w_size:
-                        i_load += 1
-                        inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
-                        inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
-                        inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
-                        inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
-                        
-                        inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
-                        outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
-                        
-                        a.append([inp])
-                        u.append([outp_temp])
-                print(i_load)
+            i_load = 0
+            for i_ele in range(max(0,i_time_frame-num_cut),i_time_frame+1):
+                p_ind = deposit_sequence[i_ele]
+                v_ind = voxel_inds[p_ind]
+                window = (ni<=v_ind[0]+x_shift+w_radius) & (ni >= v_ind[0]+x_shift-w_radius) & \
+                    (mi <= v_ind[1]+y_shift+w_radius) &(mi >= v_ind[1]+y_shift-w_radius) & \
+                    (li <= v_ind[2]+z_shift+w_radius) & (li >= v_ind[2]+z_shift-w_radius)
+                #print(sol_global_00[window].shape[0])
+                if sol_global_00[window].shape[0] == w_size*w_size*w_size:
+                    i_load += 1
+                    inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
+                    inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
+                    inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
+                    inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
+                    
+                    inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
+                    outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
+                    
+                    a.append([inp])
+                    u.append([outp_temp])
+            print(i_load)
     
     a = np.concatenate(a, axis=0)
     print(a.shape)
@@ -175,6 +174,6 @@ def preprocess_data(w_size,model_name,resolution,bjorn=False):
     "a":a,
     "u":u,
     }
-    pickle.dump(data, open( osp.join(ml_data_dir, model_name+".pk"), "wb" ))
+    pickle.dump(data, open( osp.join(ml_data_dir, model_name+'_cut'+str(num_cut)+".pk"), "wb" ))
                 
     

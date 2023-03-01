@@ -187,32 +187,26 @@ def mseloss(pred,y):
 # configs
 ################################################################
 
-#TRAIN_PATH = 'data/ns_data_V100_N1000_T50_1.mat'
-#TEST_PATH = 'data/ns_data_V100_N1000_T50_2.mat'
-
-#ntrain = 1000
-#ntest = 200
-
 w_size = 11
 
-#model_name = "hollow_2"
 resolution = 20
+num_cut = 10
 bjorn = True
 #preprocess_data(w_size,model_name,resolution,bjorn)
 
 modes = 8 # 8
 width = 20 #20
 
-batch_size = 32
+batch_size = 16
 learning_rate = 0.001
-epochs = 500
+epochs = 10
 
 
-path = 'ns_fourier_3d_N'+'_ep' + str(epochs) + '_m' + str(modes) + '_w' + str(width)
+path = 'ns_fourier_3d_N'+'_ep' + str(epochs) + '_m' + str(modes) \
+    + '_w' + str(width) + '_window_sz' + str(w_size) + '_cut'+str(num_cut)
 path_model = 'model/'+path
 path_train_err = 'results/'+path+'train.txt'
 path_test_err = 'results/'+path+'test.txt'
-#path_image = 'image/'+path
 
 runtime = np.zeros(2, )
 t1 = default_timer()
@@ -227,13 +221,13 @@ T = w_size # T=40 for V1e-3; T=20 for V1e-4; T=10 for V1e-5;
 ################################################################
 # load data
 ################################################################
-model_names = ['hollow_2','hollow_3']
+model_names = ['hollow_1','hollow_2','hollow_3','hollow_4','townhouse_2','townhouse_3','townhouse_5','townhouse_6']
+valid_model_name = 'hollow_5'
 a = []
 u = []
 for model_name in model_names:
     ml_data_dir = osp.join(data_dir,"ml_data",model_name)
-    data_path = osp.join(ml_data_dir,model_name+'.pk')
-    #data_path = osp.join(ml_data_dir,'geo_test_cone_data.pk')
+    data_path = osp.join(ml_data_dir,model_name+'_cut'+str(num_cut)+'.pk')
     data = pickle.load(open( data_path, "rb" ))
     a.append(data["a"])
     u.append(data["u"])
@@ -261,7 +255,7 @@ print(test_u.shape)
 assert (S == train_u.shape[-2])
 assert (1 == train_u.shape[-1])
 
-
+#### normalize the data
 a_normalizer = UnitGaussianNormalizer(train_a)
 train_a = a_normalizer.encode(train_a)
 test_a = a_normalizer.encode(test_a)
@@ -276,6 +270,19 @@ test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a,
 
 t2 = default_timer()
 
+
+#### valid model 
+ml_data_dir = osp.join(data_dir,"ml_data",valid_model_name)
+data_path = osp.join(ml_data_dir,valid_model_name+'_cut'+str(num_cut)+'.pk')
+valid_data = pickle.load(open( data_path, "rb" ))
+valid_a = data["a"]
+valid_u = data["u"]
+valid_a = torch.from_numpy(valid_a)
+valid_u = torch.from_numpy(valid_u)
+valid_a = a_normalizer.encode(valid_a)
+valid_u = y_normalizer.encode(valid_u)
+valid_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(valid_a, valid_u), batch_size=batch_size, shuffle=True, drop_last = True)
+
 print('preprocessing finished, time used:', t2-t1)
 device = torch.device('cuda')
 #device = torch.device('cpu')
@@ -286,9 +293,7 @@ device = torch.device('cuda')
 model = FNO3d(modes, modes, modes, width)
 model = model.to(device)
 print(count_params(model))
-#optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iterations)
 
 myloss = LpLoss(size_average=False)
@@ -357,27 +362,41 @@ for ep in range(epochs):
 
     t2 = default_timer()
     print(f'ep: {ep}, train mse: {train_mse:.6f},train L2: {train_l2:.6f},train r2: {train_r2:.6f}, test mse: {test_mse:.6f}, test L2: {test_l2:.6f},test r2: {test_r2:.6f}')
-# torch.save(model, path_model)
-
-# pred = torch.zeros(test_u.shape)
-# index = 0
-# test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(test_a, test_u), batch_size=1, shuffle=False)
-# with torch.no_grad():
-    # for x, y in test_loader:
-        # test_l2 = 0
-        # x, y = x.cuda(), y.cuda()
-        #  rho = x[:,:,:,:,[-1]]
-        # out = model(x)
-        #  out *= rho
-        #  y *= rho
-        # out = y_normalizer.decode(out)
-        # pred[index] = out
-
-        # test_l2 += myloss(out.view(1, -1), y.view(1, -1)).item()
-        # #print(index, test_l2)
-        # index = index + 1
-
-#scipy.io.savemat('pred/'+path+'.mat', mdict={'pred': pred.cpu().numpy()})
+    
+    torch.save({
+                'epoch': ep,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'test_r2': test_r2,
+                'test_mse': test_mse,
+                'test_l2':test_l2,
+                }, path_model)
+                
+model.eval()
+valid_mse = 0.0
+valid_l2 = 0.0
+valid_r2 = 0.0
+with torch.no_grad():
+    for x_valid, y_valid in valid_loader:
+        x_valid, y_valid = x_valid.to(device), y_valid.to(device)
+        rho = x_valid[:,:,:,:,[-1]]
+        pred_valid = model(x_valid).view(batch_size, S, S, T,1)     
+  
+        pred_valid *= rho
+        y_valid *= rho
+        
+        valid_mse += F.mse_loss(pred_valid, y_valid, reduction='mean').item()
+        
+        y_valid = y_normalizer.decode(y_valid)
+        pred_valid = y_normalizer.decode(pred_valid)
+          
+        
+        valid_l2 += myloss(pred_valid.view(batch_size, -1), y_valid.view(batch_size, -1)).item()
+        valid_r2 += r2loss(pred_valid.view(batch_size, -1), y_valid.view(batch_size, -1)).item()
+valid_mse /= len(valid_loader)
+valid_l2 /= len(valid_loader)
+valid_r2 /= len(valid_loader)
+print(f'valid mse: {valid_mse:.6f},valid L2: {valid_l2:.6f},valid r2: {valid_r2:.6f}')
 
 
 
