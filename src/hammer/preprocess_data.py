@@ -85,14 +85,14 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     u = []
     laser_flag = 0
     print(num_base + deposit_pairs + 1)
-    for i_deposit in range(deposit_pairs.shape[0]):
-        print(i_deposit)
+    for i_sample in range(deposit_pairs.shape[0]):
+        print(i_sample)
         if bjorn:
-            i_time_step = num_base + deposit_pairs[i_deposit,0] + 1
+            i_time_step = num_base + deposit_pairs[i_sample,0] + 1
             vtk_path_00 = osp.join(vtk_dir, f"T{(i_time_step):07}.vtu")       
             vtk_path_01 = osp.join(vtk_dir, f"T{(i_time_step+1):07d}.vtu")
         else:
-            i_time_step = deposit_pairs[i_deposit,0]
+            i_time_step = deposit_pairs[i_sample,0]
             vtk_path_00 = osp.join(vtk_dir, f"u_{(i_time_step):05d}_active_{0:05d}.vtu")       
             vtk_path_01 = osp.join(vtk_dir, f"u_{(i_time_step+1):05d}_active_{0:05d}.vtu")
         if os.path.isfile(vtk_path_00) and os.path.isfile(vtk_path_01):
@@ -111,18 +111,19 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
             centeroids_00_min = np.min(centeroids_00,axis=0,keepdims=True)
             ### from local to global indices
             inds_00 = np.round((centeroids_00-centeroids_00_min)/dx).astype(int)
+            inds_00[:,0]+=x_shift,
+            inds_00[:,1]+=y_shift,
+            inds_00[:,2]+=z_shift
             if bjorn:
                 sol_00_center = np.expand_dims(mesh_00.cell_data['T'][0],axis=1)
             else:
                 sol_00 = mesh_00.point_data['sol']
                 sol_00_center = np.mean(sol_00[cells_00],axis=1)
-            sol_global_00[inds_00[:,[0]]+x_shift,inds_00[:,[1]]+y_shift,inds_00[:,[2]]+z_shift] = sol_00_center ###only works when the model is placed on a base?
+                
             
-            i = deposit_pairs[i_deposit,1]
-            ### update the heat source
-            laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
-            heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00
-            #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
+            sol_global_00[inds_00[:,[0]],inds_00[:,[1]],inds_00[:,[2]]] = sol_00_center ###only works when the model is placed on a base?
+            #print(f"global sol00 max: {np.max(sol_global_00)}")
+            i_deposit = deposit_pairs[i_sample,1]
             
             
             cells_01 = mesh_01.cells_dict['hexahedron']
@@ -134,35 +135,60 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
             centeroids_01_min = np.min(centeroids_01,axis=0,keepdims=True)
             ### from local to global indices
             inds_01 = np.round((centeroids_01-centeroids_01_min)/dx).astype(int)
+            inds_01[:,0]+=x_shift,
+            inds_01[:,1]+=y_shift,
+            inds_01[:,2]+=z_shift
             if bjorn:
                 sol_01_center = np.expand_dims(mesh_01.cell_data['T'][0],axis=1)
             else:
                 sol_01 = mesh_01.point_data['sol']
                 sol_01_center = np.mean(sol_01[cells_01],axis=1)
             
-            sol_global_01[inds_01[:,[0]]+x_shift,inds_01[:,[1]]+y_shift,inds_01[:,[2]]+z_shift] = sol_01_center ###only works when the model is placed on a base?
-
-            i_time_frame = i-1
+            sol_global_01[inds_01[:,[0]],inds_01[:,[1]],inds_01[:,[2]]] = sol_01_center ###only works when the model is placed on a base?
+            #print(f"global sol01 max: {np.max(sol_global_01)}")
+            max_idx = np.argmax(sol_global_01)
+            #xx_idx*world_res*world_res + yy_idx*world_res+ zz_idx == max_idx
+            zz_idx = max_idx % world_res
+            yy_idx = ((max_idx-zz_idx) % (world_res*world_res))//world_res
+            xx_idx = (max_idx-zz_idx-yy_idx*world_res)//(world_res*world_res)
+            #print(np.argmax(sol_global_01))
+            #print(xx_idx, yy_idx, zz_idx)
+            
+            ### update the heat source
+            lag = 3
+            laser_center = np.array([toolpath[i_deposit,1], toolpath[i_deposit,2], toolpath[i_deposit,3]])
+            heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00        
+            #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
+            i_deposit -= lag
             i_load = 0
-            for i_ele in range(max(0,i_time_frame-num_cut),i_time_frame+1):
-                p_ind = deposit_sequence[i_ele]
-                v_ind = voxel_inds[p_ind]
-                window = (ni<=v_ind[0]+x_shift+w_radius) & (ni >= v_ind[0]+x_shift-w_radius) & \
-                    (mi <= v_ind[1]+y_shift+w_radius) &(mi >= v_ind[1]+y_shift-w_radius) & \
-                    (li <= v_ind[2]+z_shift+w_radius) & (li >= v_ind[2]+z_shift-w_radius)
-                #print(sol_global_00[window].shape[0])
-                if sol_global_00[window].shape[0] == w_size*w_size*w_size:
-                    i_load += 1
+            for i_ele in range(max(0,i_deposit-num_cut), max(0,i_deposit)):
+                p_coord = laser_center
+                v_ind = np.round((p_coord-centeroids_01_min)/dx).astype(int)[0]
+                v_ind[0]+=x_shift
+                v_ind[1]+=y_shift
+                v_ind[2]+=z_shift
+                #print(v_ind[0], v_ind[1], v_ind[2])
+                #v_ind = np.array([xx_idx,yy_idx,zz_idx])
+
+                #print(f'global v sol00: {sol_global_00[v_ind[0],v_ind[1],v_ind[2]]}')
+                #print(f'global v sol01 {sol_global_01[v_ind[0],v_ind[1],v_ind[2]]}')
+
+                window = (ni<=v_ind[0]+w_radius) & (ni >= v_ind[0]-w_radius) & \
+                    (mi <= v_ind[1]+w_radius) &(mi >= v_ind[1]-w_radius) & \
+                    (li <= v_ind[2]+1) & (li >= v_ind[2]-(2*w_radius-1))
+                if ni[window].shape[0] == w_size*w_size*w_size:
                     inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
+                    #print(i_time_frame, i_ele, np.max(inp_temp))
                     inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
                     inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
                     inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
-                    
+
                     inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
                     outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
-                    
+                    #print(i_time_frame, i_ele, np.max(outp_temp))
                     a.append([inp])
                     u.append([outp_temp])
+                    i_load += 1
             print(i_load)
     
     a = np.concatenate(a, axis=0)
