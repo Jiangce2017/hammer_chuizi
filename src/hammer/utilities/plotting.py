@@ -59,6 +59,9 @@ def plot_element_adding(subsample,base_ind,deposit_sequence,voxel_inds,figure_re
 def plot_toolpath(toolpath):
     fig = plt.figure(figsize=(8,8))
     ax = plt.axes(projection='3d')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
     for i in range(toolpath.shape[0]-1):
         ax.plot(toolpath[i:i+2, 1], 
                 toolpath[i:i+2, 2], 
@@ -94,3 +97,11 @@ def plot_toolpath_with_voxels(toolpath, voxels):
                 marker = 'o')
     
     plt.show()
+    
+def plot_test_voxel(voxel_interpolation):
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    cmap = plt.get_cmap("gray")
+    ax.voxels(voxel_interpolation, edgecolor="k", facecolors=cmap(voxel_interpolation))
+    plt.show()
+        

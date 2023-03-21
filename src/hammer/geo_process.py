@@ -112,7 +112,8 @@ class GeoReader(object):
         extend_ratio = 1.6
         xy_len = extend_ratio*(bounds[1,:2]-bounds[0,:2])
         #xy_len = extend_ratio*self._dx*self._nx
-        self._base_thickness = self._dx*self._nx*0.2
+        #self._base_thickness = self._dx*self._nx*0.2
+        self._base_thickness = self._dx*3
         base = trimesh.creation.box((xy_len[0], xy_len[1], self._base_thickness)) ### we can have an identical base for creating dataset
         #base = trimesh.creation.box((xy_len, xy_len, self._base_thickness))
         
@@ -127,13 +128,15 @@ class GeoReader(object):
         base.apply_transform(matrix)
         
         self._geo_mesh = trimesh.boolean.union([self._geo_mesh, base])
-        self._extend_base()
         
-    def _extend_base(self):
+    def extend_base(self,depth):
         base_mask = self._hex_mesh_points[:,2] < 0
         base_points = self._hex_mesh_points[base_mask]
-        base_points[:,2] = base_points[:,2]*2
-        self._hex_mesh_points[base_mask] = base_points
+        
+        ratio = depth/np.abs(np.min(base_points[:,2]))
+        base_points[:,2] = base_points[:,2]*ratio
+        self._extended_hex_mesh_points = self._hex_mesh_points.copy()
+        self._extended_hex_mesh_points[base_mask] = base_points
         
     def voxelize(self):
         self._voxels = self._geo_mesh.voxelized(self._dx, method='subdivide').fill()
@@ -274,6 +277,7 @@ class GeoReader(object):
     def save_hex_mesh(self, file_path):
         fem_file = {
             "vertices": self._hex_mesh_points,
+            "extend_vertices": self._extended_hex_mesh_points,
             "hexahedra": self._hex_mesh_cells,
             "voxel_inds": self._voxel_inds,
             "toolpath": self._toolpath,
@@ -301,6 +305,9 @@ class GeoReader(object):
         
     def plot_geo_mesh(self):
         plot_surf_mesh(self._geo_mesh.vertices[self._geo_mesh.faces])  
+        
+    def plot_fem_mesh(self):
+        plot_surf_mesh(self._extended_hex_mesh_points[self._voxel_trimesh.faces])
         
     def plot_part_toolpath(self,toolpath):
         plot_toolpath(toolpath)

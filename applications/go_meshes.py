@@ -23,6 +23,7 @@ def go_meshes(args):
     nx = float(mesh_para["nx"])
     Add_base = bool(mesh_para["Add_base"])
     num_samples = int(mesh_para["num_samples"])
+    base_depth = float(mesh_para["base_depth"])
 
     geo_dir = osp.join(data_dir, "geo_models",args.geo_models)
     femfile_dir = osp.join(data_dir,"meshes",args.geo_models+'_'+args.mesh_parameters)
@@ -33,16 +34,21 @@ def go_meshes(args):
         os.remove(f)
 
     geo_reader = GeoReader(dx,nx,Add_base)
-    files = glob.glob(os.path.join(geo_dir, f'*'))
+    files = glob.glob(os.path.join(geo_dir, f'*.stl'))
     for i,f in enumerate(files):
         geo_reader.load_file(f)
         geo_reader.voxelize()
+        geo_reader.extend_base(base_depth) 
         geo_reader.generate_part_toolpath('zigzag')
         geo_reader.generate_hexahedron_cells()
         geo_reader.sample_deposits(num_samples)
-        save_file_path = osp.join(femfile_dir, Path(f).stem+"_mesh.p")
+        save_file_path = osp.join(femfile_dir, Path(f).stem+".p")
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
+        # if i == 0:
+            # #geo_reader.plot_fem_mesh()
+            # toolpath = geo_reader.get_toolpath()
+            # geo_reader.plot_part_toolpath(toolpath)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -50,4 +56,3 @@ if __name__ == "__main__":
     parser.add_argument("--mesh_parameters", type=str, required=True)
     args = parser.parse_args()    
     go_meshes(args)
-
