@@ -4,3 +4,5 @@ trimesh
 matplotlib
 pytictoc
 pickle
+meshio
+imageio

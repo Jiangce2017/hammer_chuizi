@@ -104,7 +104,7 @@ def plot_toolpath_with_voxels(toolpath, voxels):
 ########################################################################################################################
 # TESTING
 import plotly.graph_objects as go
-from plotly_voxel_display.VoxelData import VoxelData
+#from plotly_voxel_display.VoxelData import VoxelData
 from matplotlib import cm
 import matplotlib
 
