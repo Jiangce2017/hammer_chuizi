@@ -11,7 +11,7 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
             
  
 class AMMesh(MeshDataClass):
-    def __init__(self,with_base=False, bjorn=True):
+    def __init__(self,with_base=False, bjorn=True,path=None,mesh_data=None):
         self.data_class = "Mesh"
         self.points = None ## points coordinates
         self.cells = None
@@ -20,6 +20,10 @@ class AMMesh(MeshDataClass):
         
         self.with_base = with_base
         self.bjorn = bjorn
+        if path != None:
+            self.load_data_source(path)
+        elif mesh_data != None:
+            self.set_data(mesh_data)
 
     def load_data_source(self, path:str):
         mesh = meshio.read(path)
