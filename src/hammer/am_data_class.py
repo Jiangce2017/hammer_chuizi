@@ -11,12 +11,13 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
             
  
 class AMMesh(MeshDataClass):
-    def __init__(self,with_base=False, bjorn=True,path=None,mesh_data=None):
+    def __init__(self,with_base=False, bjorn=True,path=None,mesh_data=None,base_ratio=None):
         self.data_class = "Mesh"
         self.points = None ## points coordinates
         self.cells = None
         self.point_values = None
         self.cell_values = None
+        self.base_ratio = base_ratio
         
         self.with_base = with_base
         self.bjorn = bjorn
@@ -33,6 +34,8 @@ class AMMesh(MeshDataClass):
         self.cell_values = np.expand_dims(mesh.cell_data['T'][0], axis=1)
         if self.bjorn:
             self.points /= 1e3
+        if self.base_ratio != None:
+            self.points[self.points[:,2]<0,2] = self.points[self.points[:,2]<0,2]*self.base_ratio
     
     def get_data_class(self):
         return self.data_class
@@ -88,6 +91,15 @@ class AMVoxel(VoxelDataClass):
 
     def get_data_class(self):
         return self.data_class
+        
+    def shift(self,x_shift,y_shift,z_shift):
+        self.x_shift = x_shift
+        self.y_shift = y_shift
+        self.z_shift = z_shift
+        self.int_coords[:,0]+=x_shift
+        self.int_coords[:,1]+=y_shift
+        self.int_coords[:,2]+=z_shift
+        
 
 
         

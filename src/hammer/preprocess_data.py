@@ -8,34 +8,16 @@ import pickle
 from numpy import linalg as LA
 
 from hammer import GeoReader
+from .am_data_class import AMMesh, AMGraph, AMVoxel
 
 data_dir = os.path.join(Path.home(), 'data','hammer') 
 
-def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
-    #w_size = 5
+def preprocess_data(w_size,model_name,resolution,num_cut,problem_name,femfile_dir,geo_dir,vtk_dir,ml_data_dir,bjorn=False,):
     w_radius = (w_size-1)//2
 
-    # load voxels # load ele_sequence
-
-    #model_name = "cone_with_base"
-    problem_name = "small_10_base_20"
-    femfile_dir = osp.join(data_dir,"meshes","extend_base_bjorn",problem_name)
-    geo_dir = osp.join(data_dir, "geo_models","small_10")
-    if bjorn:
-        vtk_dir = osp.join(data_dir,"vtk",'bjorn_fem',problem_name, model_name,'vtk')
-    else:    
-        vtk_dir = osp.join(data_dir,"vtk",problem_name, model_name)
-
-    ml_data_dir = osp.join(data_dir,"ml_data",model_name)
-    os.makedirs(ml_data_dir, exist_ok=True)
-
     fem_file = pickle.load( open( osp.join(femfile_dir, model_name+".p"), "rb" ) ) 
-
     voxel_inds, deposit_sequence, toolpath = fem_file["voxel_inds"], fem_file["deposit_sequence"], fem_file["toolpath"]
-    dx = fem_file["dx"]
-    nx = fem_file["nx"]
-    Add_base = fem_file["Add_base"]
-    path_dx = fem_file["dx"]
+    
     if bjorn:
         whole_cells = fem_file["hexahedra"]
         num_base = whole_cells.shape[0]-toolpath.shape[0]
@@ -48,7 +30,6 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
 
     max_inds = np.max(voxel_inds,axis=0)
     max_coord = np.max(max_inds)
-    #ni,mi,li = np.indices((max_inds[0]+1,max_inds[1]+1,max_inds[2]+1+w_size))
 
     world_res = resolution*2
     ni,mi,li = np.indices((world_res,world_res,world_res))
@@ -57,19 +38,21 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     x_shift = int((world_res - max_inds[0])//2)
     y_shift = int((world_res - max_inds[1])//2)
     z_shift = int((world_res - max_inds[2])//2)
-    #x_shift = 0
-    #y_shift = 0
-    #z_shift = 0
 
+    voxel_inds[:,0]+=x_shift
+    voxel_inds[:,1]+=y_shift
+    voxel_inds[:,2]+=z_shift
     ## boundary impact factor (BIF)
+    dx = fem_file["dx"]
+    nx = fem_file["nx"]
+    Add_base = fem_file["Add_base"]
     geo_reader = GeoReader(dx,nx,Add_base)
     cad_file = osp.join(geo_dir,model_name+'.stl')
     geo_reader.load_file(cad_file)
     geo_reader.voxelize()
     bif = geo_reader.calculate_bif()
     bif_global = np.zeros((ni.shape[0],ni.shape[1],ni.shape[2],2),dtype = np.float32)
-    bif_global[voxel_inds[:,0]+x_shift,voxel_inds[:,1]+y_shift,voxel_inds[:,2]+z_shift,:] = bif
-
+    bif_global[voxel_inds[:,0],voxel_inds[:,1],voxel_inds[:,2],:] = bif
 
 
     ## rho
@@ -79,14 +62,13 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     centroids = np.mean(fem_file["vertices"][fem_file["hexahedra"]],axis=1)
     active_cell_tab[centroids[:, 2] <= base_plate_height + dx/4 ] = True
     rho_global = np.zeros((ni.shape[0],ni.shape[1],ni.shape[2],1),dtype = np.float32)
-    rho_global[voxel_inds[active_cell_tab,0]+x_shift,voxel_inds[active_cell_tab,1]+y_shift,\
-               voxel_inds[active_cell_tab,2]+z_shift,:] = 1
+    rho_global[voxel_inds[active_cell_tab,0],voxel_inds[active_cell_tab,1],\
+               voxel_inds[active_cell_tab,2],:] = 1
 
 
     ## from indices to coordinates
-
-    sol_global_00 = np.zeros(ni.shape,dtype = np.float32)
-    sol_global_01= np.zeros(ni.shape,dtype = np.float32)
+    sol_global0 = np.zeros(ni.shape,dtype = np.float32)
+    sol_global1= np.zeros(ni.shape,dtype = np.float32)
 
     #heat_info = np.zeros((ni.shape[0],ni.shape[1],ni.shape[2],4),dtype = np.float32)
     heat_info = np.zeros((ni.shape[0],ni.shape[1],ni.shape[2],3),dtype = np.float32)
@@ -94,9 +76,9 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     u = []
     window_info = []
     laser_flag = 0
-    print(num_base + deposit_pairs + 1)
     
-    for i_sample in range(deposit_pairs.shape[0]):
+    #for i_sample in range(deposit_pairs.shape[0]):
+    for i_sample in range(10):
         print(i_sample)
         if bjorn:
             i_time_step = num_base + deposit_pairs[i_sample,0] + 1
@@ -108,104 +90,53 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
             vtk_path_01 = osp.join(vtk_dir, f"u_{(i_time_step+1):05d}_active_{0:05d}.vtu")
         if os.path.isfile(vtk_path_00) and os.path.isfile(vtk_path_01):
             print(i_time_step)
-            mesh_00 = meshio.read(vtk_path_00)
-            mesh_01 = meshio.read(vtk_path_01)
-
+            mesh0 = AMMesh(with_base=True,path=vtk_path_00,base_ratio=ratio)
+            mesh1 = AMMesh(with_base=True,path=vtk_path_01,base_ratio=ratio)           
+            voxel0 = mesh0.to("Voxel")
+            voxel1 = mesh1.to("Voxel")          
+            voxel0.shift(x_shift,y_shift,z_shift)
+            voxel1.shift(x_shift,y_shift,z_shift)                                    
+            sol_global0[voxel0.int_coords[:,[0]],voxel0.int_coords[:,[1]],voxel0.int_coords[:,[2]]] = voxel0.voxel_values
+            sol_global1[voxel1.int_coords[:,[0]],voxel1.int_coords[:,[1]],voxel1.int_coords[:,[2]]] = voxel1.voxel_values            
             
-            cells_00 = mesh_00.cells_dict['hexahedron']
-            points_00 = mesh_00.points
-            if bjorn:
-                points_00 /= 1e3
-            
-            points_00[points_00[:,2]<0,2] = points_00[points_00[:,2]<0,2]*ratio
-            centeroids_00 = np.mean(points_00[cells_00],axis=1)
-            centeroids_00_min = np.min(centeroids_00,axis=0,keepdims=True)
-            ### from local to global indices
-            inds_00 = np.round((centeroids_00-centeroids_00_min)/dx).astype(int)
-            inds_00[:,0]+=x_shift,
-            inds_00[:,1]+=y_shift,
-            inds_00[:,2]+=z_shift
-            if bjorn:
-                sol_00_center = np.expand_dims(mesh_00.cell_data['T'][0],axis=1)
-            else:
-                sol_00 = mesh_00.point_data['sol']
-                sol_00_center = np.mean(sol_00[cells_00],axis=1)
-                
-            
-            sol_global_00[inds_00[:,[0]],inds_00[:,[1]],inds_00[:,[2]]] = sol_00_center ###only works when the model is placed on a base?
-            #print(f"global sol00 max: {np.max(sol_global_00)}")
-            i_deposit = deposit_pairs[i_sample,0]
-            
-            
-            cells_01 = mesh_01.cells_dict['hexahedron']
-            points_01 = mesh_01.points
-            if bjorn:
-                points_01 /= 1e3
-            points_01[points_01[:,2]<0,2] = points_01[points_01[:,2]<0,2]*ratio
-            centeroids_01 = np.mean(points_01[cells_01],axis=1)
-            centeroids_01_min = np.min(centeroids_01,axis=0,keepdims=True)
-            ### from local to global indices
-            inds_01 = np.round((centeroids_01-centeroids_01_min)/dx).astype(int)
-            inds_01[:,0]+=x_shift,
-            inds_01[:,1]+=y_shift,
-            inds_01[:,2]+=z_shift
-            if bjorn:
-                sol_01_center = np.expand_dims(mesh_01.cell_data['T'][0],axis=1)
-            else:
-                sol_01 = mesh_01.point_data['sol']
-                sol_01_center = np.mean(sol_01[cells_01],axis=1)
-            
-            sol_global_01[inds_01[:,[0]],inds_01[:,[1]],inds_01[:,[2]]] = sol_01_center ###only works when the model is placed on a base?
-            print(f"global sol01 max: {np.max(sol_global_01)}")            
+            print(voxel0.center_coords.shape[0])
+            print(voxel1.center_coords.shape[0])
+            i_deposit = voxel1.center_coords.shape[0]-num_base                       
             ### update the heat source
-            lag = 1
-            i_deposit -= lag
-            laser_center = np.array([toolpath[i_deposit,1], toolpath[i_deposit,2], toolpath[i_deposit,3]])
-            heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],:3] = laser_center-centeroids_00        
+            laser_center = voxel1.center_coords[-1]
+            heat_info[voxel0.int_coords[:,0],voxel0.int_coords[:,1],voxel0.int_coords[:,2],:3] = laser_center-voxel0.center_coords
             #heat_info[inds_00[:,0],inds_00[:,1],inds_00[:,2],3] = laser_flag
+
+            active_cell_tab[deposit_sequence[:i_deposit+1]] = True 
+            rho_global[voxel_inds[active_cell_tab,0],voxel_inds[active_cell_tab,1],\
+                       voxel_inds[active_cell_tab,2],:] = 1
+ 
+            sol_global0 *= rho_global[:,:,:,0]
+            sol_global1 *= rho_global[:,:,:,0]
             
-            active_cell_tab[deposit_sequence[:i_deposit]] = True 
-            rho_global[voxel_inds[active_cell_tab,0]+x_shift,voxel_inds[active_cell_tab,1]+y_shift,\
-                       voxel_inds[active_cell_tab,2]+z_shift,:] = 1
-            
-            print(sol_global_00.shape,rho_global.shape)
-            
-            sol_global_00 *= rho_global[:,:,:,0]
-            sol_global_01 *= rho_global[:,:,:,0]
-            
-            i_load = 0
-            for i_ele in range(max(0,i_deposit-num_cut), max(0,i_deposit)):
-                p_coord = np.array([toolpath[i_ele,1], toolpath[i_ele,2], toolpath[i_ele,3]])
-                v_ind = np.round((p_coord-centeroids_01_min)/dx).astype(int)[0]
-                print(v_ind)
-                v_ind = voxel_inds[deposit_sequence[i_ele]].copy()
-                print(v_ind)
+            for i_ele in range(max(0,i_deposit-num_cut), i_deposit):
+                v_ind = voxel_inds[deposit_sequence[i_ele]]
                 
-                v_ind[0]+=x_shift
-                v_ind[1]+=y_shift
-                v_ind[2]+=z_shift
-                
-                print(f'global v sol00: {sol_global_00[v_ind[0],v_ind[1],v_ind[2]]}')
-                print(f'global v sol01 {sol_global_01[v_ind[0],v_ind[1],v_ind[2]]}')
+                print(i_deposit, i_ele)
+                print(f'global v sol00: {sol_global0[v_ind[0],v_ind[1],v_ind[2]]}')
+                print(f'global v sol01 {sol_global1[v_ind[0],v_ind[1],v_ind[2]]}')                
+                print(f'global v heatinfo00: {heat_info[v_ind[0],v_ind[1],v_ind[2]]}')
 
                 window = (ni<=v_ind[0]+w_radius) & (ni >= v_ind[0]-w_radius) & \
                     (mi <= v_ind[1]+w_radius) &(mi >= v_ind[1]-w_radius) & \
                     (li <= v_ind[2]+w_radius) & (li >= v_ind[2]-w_radius)
                 if ni[window].shape[0] == w_size*w_size*w_size:
-                    inp_temp = sol_global_00[window].reshape((w_size,w_size,w_size,1))
-                    print(i_deposit, i_ele, np.max(inp_temp))
+                    inp_temp = sol_global0[window].reshape((w_size,w_size,w_size,1))                    
                     inp_heat_info = heat_info[window].reshape((w_size,w_size,w_size,-1))
                     inp_bif = bif_global[window].reshape((w_size,w_size,w_size,-1))
                     inp_rho = rho_global[window].reshape((w_size,w_size,w_size,1))         
 
                     inp = np.concatenate((inp_temp,inp_heat_info,inp_bif,inp_rho), axis=-1)
-                    outp_temp = sol_global_01[window].reshape((w_size,w_size,w_size,1))
-                    print(i_deposit, i_ele, np.max(outp_temp))
+                    outp_temp = sol_global1[window].reshape((w_size,w_size,w_size,1))
+
                     a.append([inp])
                     u.append([outp_temp])
                     window_info.append(np.array([[i_deposit,i_ele]]))
-                    i_load += 1
-            print(i_load)
     
     a = np.concatenate(a, axis=0)
     print(a.shape)
@@ -219,6 +150,7 @@ def preprocess_data(w_size,model_name,resolution,num_cut,bjorn=False):
     "u":u,
     "window_info": window_info,
     }
-    pickle.dump(data, open( osp.join(ml_data_dir, model_name+'_cut'+str(num_cut)+".pk"), "wb" ))
+    return data
+    
                 
     
