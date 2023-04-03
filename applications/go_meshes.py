@@ -32,8 +32,9 @@ def go_meshes(args):
     files = glob.glob(osp.join(femfile_dir, f'*'))
     for f in files:
         os.remove(f)
-
-    geo_reader = GeoReader(dx,nx,Add_base)
+    
+    Same_base_flag=True
+    geo_reader = GeoReader(dx,nx,Add_base,Same_base_flag)
     files = glob.glob(os.path.join(geo_dir, f'*.stl'))
     for i,f in enumerate(files):
         geo_reader.load_file(f)
@@ -45,10 +46,10 @@ def go_meshes(args):
         save_file_path = osp.join(femfile_dir, Path(f).stem+".p")
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
-        # if i == 0:
-            # #geo_reader.plot_fem_mesh()
-            # toolpath = geo_reader.get_toolpath()
-            # geo_reader.plot_part_toolpath(toolpath)
+        if i == 0:
+            #geo_reader.plot_fem_mesh()
+            toolpath = geo_reader.get_toolpath()
+            geo_reader.plot_part_toolpath(toolpath)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
