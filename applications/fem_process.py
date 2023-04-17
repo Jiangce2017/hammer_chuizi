@@ -41,8 +41,6 @@ def ded_cad_model(parameter_json_file, problem_name):
     P = float(am_para["P"])
     base_plate_height = 0 
 
-    # path_resolution = 0.25*1e-3 # element x size = 0.5*1e-3
-    #path_resolution = 0.125*1e-3 # element x size = 0.5*1e-3
     
 
     vec = 1
