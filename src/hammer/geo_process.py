@@ -5,11 +5,12 @@ import pickle
 from hammer.utilities.plotting import plot_surf_mesh, plot_toolpath, plot_element_adding
 
 class GeoReader(object):
-    def __init__(self,dx:float, nx:int, Add_base_flag=True):
+    def __init__(self,dx:float, nx:int, Add_base_flag=True,Same_base_flag=False):
         super(GeoReader, self).__init__() 
         self._dx = dx
         self._nx = nx
         self._Add_base_flag = Add_base_flag
+        self.same_base = Same_base_flag
         
         self._geo_file_path = None
         self._geo_mesh = None
@@ -33,6 +34,7 @@ class GeoReader(object):
         self._sampled_deposits  = None
         self._deposit_pairs = None
         self._dt = None
+        self._extended_hex_mesh_points = None
         
         # self._load_file()
         # self._normalize()
@@ -73,6 +75,7 @@ class GeoReader(object):
         self._sampled_deposits  = None
         self._deposit_pairs = None
         self._dt = None
+        self._extended_hex_mesh_points = None
         
         self._load_file()
         self._normalize()
@@ -110,12 +113,15 @@ class GeoReader(object):
     def _add_base(self):
         bounds = self._get_bounds()
         extend_ratio = 1.6
-        xy_len = extend_ratio*(bounds[1,:2]-bounds[0,:2])
-        #xy_len = extend_ratio*self._dx*self._nx
-        #self._base_thickness = self._dx*self._nx*0.2
-        self._base_thickness = self._dx*3
-        base = trimesh.creation.box((xy_len[0], xy_len[1], self._base_thickness)) ### we can have an identical base for creating dataset
-        #base = trimesh.creation.box((xy_len, xy_len, self._base_thickness))
+        if self.same_base == False:
+            xy_len = extend_ratio*(bounds[1,:2]-bounds[0,:2])
+            
+            self._base_thickness = self._dx*3
+            base = trimesh.creation.box((xy_len[0], xy_len[1], self._base_thickness)) ### we can have an identical base for creating dataset
+        else:
+            xy_len = extend_ratio*self._dx*self._nx
+            self._base_thickness = self._dx*3
+            base = trimesh.creation.box((xy_len, xy_len*0.4, self._base_thickness))
         
         #### move the base to the center
         center = np.mean(bounds,axis=0)
@@ -307,7 +313,10 @@ class GeoReader(object):
         plot_surf_mesh(self._geo_mesh.vertices[self._geo_mesh.faces])  
         
     def plot_fem_mesh(self):
-        plot_surf_mesh(self._extended_hex_mesh_points[self._voxel_trimesh.faces])
+        if self._Add_base_flag:
+            plot_surf_mesh(self._extended_hex_mesh_points[self._voxel_trimesh.faces])
+        else:
+            plot_surf_mesh(self._hex_mesh_points[self._voxel_trimesh.faces])
         
     def plot_part_toolpath(self,toolpath):
         plot_toolpath(toolpath)
