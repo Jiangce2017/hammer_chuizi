@@ -2,3 +2,4 @@ bead: h 1-3 mm, 3-7 mm wid,
 .045 inches == 1.143 mm 
 200 hz
 material: er70s-6, L-59 SuperArc wire
+30-40 k

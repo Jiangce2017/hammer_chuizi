@@ -25,7 +25,7 @@ import gc
 from am_process_logger import am_process_logger
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 data_dir = os.path.join('/mnt/c/Users/jiang', 'data','hammer') 
-
+#data_dir = os.path.join('/home', 'data','hammer')
 
 
 #@profile
@@ -53,7 +53,7 @@ def ded_cad_model(parameter_json_file, problem_name):
     
     femfile_dir = osp.join(data_dir,"meshes",problem_name)
     files = glob.glob(osp.join(femfile_dir, f'*'))
-    
+    print(femfile_dir)
     t1 = default_timer()
     for ffi,f in enumerate(files[:1]):
         fem_file = pickle.load( open(f, "rb" ) )   
@@ -84,9 +84,12 @@ def ded_cad_model(parameter_json_file, problem_name):
         cad_mesh = meshio.Mesh(points=full_mesh.points, cells={'hexahedron': full_mesh.cells})
         cad_mesh.write(os.path.join(vtk_dir, f"cad_mesh.vtu"))
         active_cell_truth_tab_old = active_cell_truth_tab
-
-        external_faces, cells_face, hash_map, inner_faces, all_faces = initialize_hash_map(full_mesh, 
-            active_cell_truth_tab, cells_map_full, ele_type)
+        
+        am_logger = am_process_logger(full_mesh, active_mesh,points_map_active,cells_map_full,active_cell_truth_tab,ele_type)
+        am_logger.initialize_hash_map()
+        #external_faces = am_logger.external_faces
+        # external_faces, cells_face, hash_map, inner_faces, all_faces = initialize_hash_map(full_mesh, 
+            # active_cell_truth_tab, cells_map_full, ele_type)
 
         #toolpath = onp.loadtxt(os.path.join(data_dir, f'toolpath/thinwall_toolpath.crs'))
         # toolpath[:, 1:4] = toolpath[:, 1:4]
@@ -118,29 +121,29 @@ def ded_cad_model(parameter_json_file, problem_name):
         
         activation_time = onp.zeros((toolpath.shape[0],1),dtype=np.float64)
         problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_off,
-                        additional_info=(full_sol, rho, Cp, dt, external_faces))
+                        additional_info=(full_sol, rho, Cp, dt, am_logger.external_faces))
         i_step = 0
         simu_path = "simu_status.pickle"
         if os.path.isfile(simu_path):
             simu_status = pickle.load(open(simu_path, 'rb'))                
             hash_map = simu_status["hash_map"]
-            external_faces = simu_status["external_faces"]
+            am_logger.external_facesexternal_faces = simu_status["external_faces"]
             inner_faces = simu_status["inner_faces"]
             all_faces = simu_status["all_faces"]
             active_cell_truth_tab = simu_status["active_cell_truth_tab"]
             active_points_truth_tab = simu_status["active_points_truth_tab"]
             cells_map_full = simu_status["cells_map_full"]
             points_map_full = simu_status["points_map_full"]
-            points_map_active = simu_status["points_map_active"]
+            am_logger.points_map_active = simu_status["points_map_active"]
             active_points = simu_status["active_points"]
             active_cells = simu_status["active_cells"]
             full_sol = simu_status["full_sol"]
             i_step = simu_status["i_step"]
         
-        am_logger = am_process_logger(full_mesh, active_mesh,points_map_active,cells_map_full,active_cell_truth_tab,\
-            external_faces, hash_map, inner_faces, all_faces,cells_face)
+        
             
-        for i in range(i_step,min(i_step+50,toolpath.shape[0])):
+        #for i in range(i_step,min(i_step+50,toolpath.shape[0])):
+        for i in range(i_step,toolpath.shape[0]):
             if i == 0:
                 n_step = 1
             else:
@@ -150,14 +153,14 @@ def ded_cad_model(parameter_json_file, problem_name):
                 activation_time[i,0] = dt*n_step + activation_time[i-1,0]
             if n_step > 1:
                 num_laser_off = n_step-1
-                sol = full_sol[points_map_active]
-                additional_info=(sol, rho, Cp, dt, external_faces)
+                sol = full_sol[am_logger.points_map_active]
+                additional_info=(sol, rho, Cp, dt, am_logger.external_faces)
                 problem.custom_init(*additional_info)
                 problem.neumann_bc_info = neumann_bc_info_laser_off
                 for j in range(n_step-1):
                     sol = solver(problem, linear=True,use_petsc=True)
                     problem.update_int_vars(sol)
-                    full_sol = full_sol.at[points_map_active].set(sol)
+                    full_sol = full_sol.at[am_logger.points_map_active].set(sol)
                     #vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
                     #save_sol(problem, sol, vtk_path)
             num_laser_on = 1
@@ -183,27 +186,27 @@ def ded_cad_model(parameter_json_file, problem_name):
             
             
             
-            # problem.neumann_bc_info = neumann_bc_info_laser_on
-            # problem.mesh = am_logger.active_mesh
-            # #problem.__post_init__()
-            # problem.points = am_logger.active_mesh.points
-            # problem.cells = am_logger.active_mesh.cells
-            # problem.num_cells = len(problem.cells)
-            # problem.num_total_nodes = len(problem.mesh.points)
-            # problem.num_total_dofs = problem.num_total_nodes*problem.vec
-            # problem.num_quads = problem.shape_vals.shape[0]
-            # problem.num_nodes = problem.shape_vals.shape[1]
-            # problem.num_faces = problem.face_shape_vals.shape[0]
-            # problem.shape_grads, problem.JxW = problem.get_shape_grads()
-            # problem.neumann = problem.compute_Neumann_integral()
-            # problem.v_grads_JxW = problem.shape_grads[:, :, :, None, :] * problem.JxW[:, :, None, None, None]
-            # problem.internal_vars = {}
+            problem.neumann_bc_info = neumann_bc_info_laser_on
+            problem.mesh = am_logger.active_mesh
+            #problem.__post_init__()
+            problem.points = am_logger.active_mesh.points
+            problem.cells = am_logger.active_mesh.cells
+            problem.num_cells = len(problem.cells)
+            problem.num_total_nodes = len(problem.mesh.points)
+            problem.num_total_dofs = problem.num_total_nodes*problem.vec
+            problem.num_quads = problem.shape_vals.shape[0]
+            problem.num_nodes = problem.shape_vals.shape[1]
+            problem.num_faces = problem.face_shape_vals.shape[0]
+            problem.shape_grads, problem.JxW = problem.get_shape_grads()
+            problem.neumann = problem.compute_Neumann_integral()
+            problem.v_grads_JxW = problem.shape_grads[:, :, :, None, :] * problem.JxW[:, :, None, None, None]
+            problem.internal_vars = {}
             
             
-            # additional_info=(sol, rho, Cp, dt, am_logger.external_faces)
-            # problem.custom_init(*additional_info)
-            problem = Thermal(am_logger.active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
-                              additional_info=(sol, rho, Cp, dt, am_logger.external_faces))    
+            additional_info=(sol, rho, Cp, dt, am_logger.external_faces)
+            problem.custom_init(*additional_info)
+            # problem = Thermal(am_logger.active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
+                              # additional_info=(sol, rho, Cp, dt, am_logger.external_faces))    
             sol = solver(problem, linear=True,use_petsc=True)
             problem.update_int_vars(sol)
             full_sol = full_sol.at[am_logger.points_map_active].set(sol)
@@ -212,7 +215,7 @@ def ded_cad_model(parameter_json_file, problem_name):
             if i in sampled_deposits:
                 save_sol(problem, sol, vtk_path)
                 print(f"save {i} deposition")
-                print(f"Innterfaces: {len(inner_faces)}, external_faces: {len(am_logger.external_faces)}, all faces: {len(am_logger.all_faces)}")
+                print(f"Innterfaces: {len(am_logger.inner_faces)}, external_faces: {len(am_logger.external_faces)}, all faces: {len(am_logger.all_faces)}")
             am_logger.active_cell_truth_tab_old = active_cell_truth_tab
             # simu_status = {
                 # "hash_map":hash_map,
@@ -244,8 +247,14 @@ if __name__ == "__main__":
     parameter_json_file = "./am_parameters.json"
     problem_name = "extend_small_10_base_20"
     
-
+    tracemalloc.start()
     ded_cad_model(parameter_json_file,problem_name)
     gc.collect()
+    
+    # displaying the memory
+    print(tracemalloc.get_traced_memory())
+     
+    # stopping the library
+    tracemalloc.stop()   
     input("Press Enter to continue...")
                                                                                                                                                                                                    

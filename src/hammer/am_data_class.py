@@ -2,7 +2,7 @@ from hammer_data import MeshDataClass, GraphDataClass, VoxelDataClass
 
 import pickle
 import meshio
-import numpy as np
+import numpy as onp
 import numpy.linalg as LA
 import torch
 
@@ -31,7 +31,12 @@ class AMMesh(MeshDataClass):
         self.points = mesh.points ## points coordinates
         self.cells = mesh.cells_dict['hexahedron']
         self.point_values = None
-        self.cell_values = np.expand_dims(mesh.cell_data['T'][0], axis=1)
+        if self.bjorn:
+            self.cell_values = onp.expand_dims(mesh.cell_data['T'][0], axis=1)
+        else:
+            sol = mesh.point_data['sol']
+            self.point_values = sol
+            self.cell_values = onp.mean(sol[self.cells],axis=1)
         if self.bjorn:
             self.points /= 1e3
         if self.base_ratio != None:
@@ -123,7 +128,7 @@ class AMGraph(GraphDataClass):
         p1s = points[edge_index[0, :]]
         ax.plot(points[:, 0], points[:, 1], points[:, 2], '.r', markersize=3)
         p2s = points[edge_index[1, :]]
-        ls = np.hstack([p1s, p2s]).copy()
+        ls = onp.hstack([p1s, p2s]).copy()
         ls = ls.reshape((-1, 2, 3))
         lc = Line3DCollection(ls, linewidths=0.5, colors='b')
         ax.add_collection(lc)
