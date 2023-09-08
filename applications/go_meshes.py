@@ -11,6 +11,9 @@ import glob
 from hammer import GeoReader
 from hammer.utilities.plotting import plot_element_adding
 
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 data_dir = osp.join(Path.home(), 'data','hammer')
 #data_dir = osp.join('/mnt/c/Users/jiang', 'data','hammer')
 
