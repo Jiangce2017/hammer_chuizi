@@ -146,6 +146,94 @@ class FNO3d(nn.Module):
         gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
         return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
 
+class FNO3d_local(nn.Module):
+    def __init__(self, modes1, modes2, modes3, width):
+        super(FNO3d_local, self).__init__()
+
+        """
+        The overall network. It contains 4 layers of the Fourier layer.
+        1. Lift the input to the desire channel dimension by self.fc0 .
+        2. 4 layers of the integral operators u' = (W + K)(u).
+            W defined by self.w; K defined by self.conv .
+        3. Project from the channel space to the output space by self.fc1 and self.fc2 .
+        
+        input: the solution of the first 10 timesteps + 3 locations (u(1, x, y), ..., u(10, x, y),  x, y, t). It's a constant function in time, except for the last index.
+        input shape: (batchsize, x=64, y=64, t=40, c=13)
+        output: the solution of the next 40 timesteps
+        output shape: (batchsize, x=64, y=64, t=40, c=1)
+        """
+
+        self.modes1 = modes1
+        self.modes2 = modes2
+        self.modes3 = modes3
+        self.width = width
+        self.padding = 6 # pad the domain if input is non-periodic
+
+        self.p = nn.Linear(10, self.width)# input channel is 11: (T, Hx,Hy,Hz, bif1, bif2,rho, x, y, z) #10
+        self.conv0 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
+        self.conv1 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
+        self.conv2 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
+        self.conv3 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
+        self.mlp0 = MLP(self.width, self.width, self.width)
+        self.mlp1 = MLP(self.width, self.width, self.width)
+        self.mlp2 = MLP(self.width, self.width, self.width)
+        self.mlp3 = MLP(self.width, self.width, self.width)
+        self.w0 = nn.Conv3d(self.width, self.width, 1)
+        self.w1 = nn.Conv3d(self.width, self.width, 1)
+        self.w2 = nn.Conv3d(self.width, self.width, 1)
+        self.w3 = nn.Conv3d(self.width, self.width, 1)
+        self.q = MLP(self.width, 1, self.width * 4) # output channel is 1: u(x, y)
+
+    def forward(self, x):
+        grid = self.get_grid(x.shape, x.device)
+        x = torch.cat((x, grid), dim=-1)
+        #print(x.shape)
+        x = self.p(x)
+        x = x.permute(0, 4, 1, 2, 3)
+        x = F.pad(x, [0,self.padding]) # pad the domain if input is non-periodic
+
+        x1 = self.conv0(x)
+        x1 = self.mlp0(x1)
+        x2 = self.w0(x)
+        x = x1 + x2
+        x = F.gelu(x)
+
+        x1 = self.conv1(x)
+        x1 = self.mlp1(x1)
+        x2 = self.w1(x)
+        x = x1 + x2
+        x = F.gelu(x)
+
+        x1 = self.conv2(x)
+        x1 = self.mlp2(x1)
+        x2 = self.w2(x)
+        x = x1 + x2
+        x = F.gelu(x)
+
+        x1 = self.conv3(x)
+        x1 = self.mlp3(x1)
+        x2 = self.w3(x)
+        x = x1 + x2
+
+        x = x[..., :-self.padding]
+        x = self.q(x)
+        x = x.permute(0, 2, 3, 4, 1) # pad the domain if input is non-periodic
+        return x
+
+
+    def get_grid(self, shape, device):
+        batchsize, size_x, size_y, size_z = shape[0], shape[1], shape[2], shape[3]
+        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = gridx.reshape(1, size_x, 1, 1, 1).repeat([batchsize, 1, size_y, size_z, 1])
+        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = gridy.reshape(1, 1, size_y, 1, 1).repeat([batchsize, size_x, 1, size_z, 1])
+        gridz = torch.tensor(np.linspace(0, 1, size_z), dtype=torch.float)
+        gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
+        return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
+    
+# def CNN3d(nn.Module):
+#  def __init__(self, modes1, modes2, modes3, width):
+#         super(CNN3d, self).__init__()
 
 def r2loss(pred, y):
     #print(pred.shape,y.shape)

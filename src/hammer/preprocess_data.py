@@ -78,7 +78,7 @@ def preprocess_data(w_size,model_name,resolution,num_cut,problem_name,femfile_di
     laser_flag = 0
     
     #for i_sample in range(deposit_pairs.shape[0]):
-    for i_sample in range(10):
+    for i_sample in range(100):
         print(i_sample)
         if bjorn:
             i_time_step = num_base + deposit_pairs[i_sample,0] + 1
@@ -114,7 +114,8 @@ def preprocess_data(w_size,model_name,resolution,num_cut,problem_name,femfile_di
             sol_global0 *= rho_global[:,:,:,0]
             sol_global1 *= rho_global[:,:,:,0]
             
-            for i_ele in range(max(0,i_deposit-num_cut), i_deposit):
+            #for i_ele in range(max(0,i_deposit-num_cut), i_deposit):
+            for i_ele in range(i_deposit):
                 v_ind = voxel_inds[deposit_sequence[i_ele]]
                 
                 print(i_deposit, i_ele)

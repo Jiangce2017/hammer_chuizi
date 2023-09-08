@@ -229,8 +229,8 @@ def plot_data(true, prediction, windows, time_steps, sample_indices, file_name, 
         pred_u = prediction.reshape(num_samples, -1)
         mse = np.mean((pred_u - true_u) ** 2, axis=1)
 
-        worst_sample_indices = np.argsort(mse)[-number_samples:]
-        sample_indices = worst_sample_indices
+        worst_sample_indices = np.argsort(mse)[-number_samples:]       
+        sample_indices = np.flip(worst_sample_indices)
 
 
 
@@ -267,8 +267,13 @@ def plot_data(true, prediction, windows, time_steps, sample_indices, file_name, 
         # Plot Difference
         error = u_true_sample - u_pred_sample
         count += 1
-        ax3, fig3 = matplot_voxels(error, "Temperature", title=title3, subplot=(number_samples, columns, count), fig=fig, fontsize=fontsize)
-
+        max_err = np.max(np.abs(error))
+        ax3, fig3 = matplot_voxels(error, "Temperature", title=title3,minimum=-max_err, maximum=max_err, subplot=(number_samples, columns, count), fig=fig, fontsize=fontsize)
+        
+        
+        #c = plt.colorbar()
+        #plt.clim(-max_err, max_err)
+        
         # Plot Percent Error
         # Calculate the percentage errors, handling the case where actual is 0
         u_error = np.where(u_true_sample == 0, 0, np.divide(abs(error), abs(u_true_sample)) * 100)
