@@ -186,3 +186,4 @@ def r2loss(pred, y):
 def mseloss(pred,y):
     mse = torch.mean((pred-y)**2,dim=1)
     return torch.mean(mse)
+

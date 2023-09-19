@@ -14,7 +14,7 @@ from numpy import linalg as LA
 from hammer import FNO3d, r2loss, CNN
 
 import torch.nn.functional as F
-from applications.utilities3 import *
+from utilities3 import *
 from timeit import default_timer
 import csv
 torch.manual_seed(1234)
