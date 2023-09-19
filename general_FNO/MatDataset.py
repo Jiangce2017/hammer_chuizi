@@ -11,38 +11,45 @@ from torch.utils.data import Dataset
 import torch.nn as nn
 
 
-class MatDataset(InMemoryDataset):
-    def __init__(self, root, transform=None, pre_transform=None):
-        super(MatDataset, self).__init__(root, transform, pre_transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
+# class MatDataset(InMemoryDataset):
+#     def __init__(self, root, transform=None, pre_transform=None):
+#         super(MatDataset, self).__init__(root, transform, pre_transform)
+#         self.data, self.slices = torch.load(self.processed_paths[0])
 
-    @property
-    def raw_file_names(self):
-        return []
+#     @property
+#     def raw_file_names(self):
+#         return []
     
-    @property
-    def processed_file_names(self):
-        return ['data.pt']
+#     @property
+#     def processed_file_names(self):
+#         return ['data.pt']
     
-    def download(self):
-        pass
+#     def download(self):
+#         pass
 
-    def process(self):
-        raise NotImplementedError
+#     def process(self):
+#         raise NotImplementedError
     
-    def extract_solution(self, h5_file, sim, res):
-        raise NotImplementedError
+#     def extract_solution(self, h5_file, sim, res):
+#         raise NotImplementedError
     
-    def construct_data_object(self, coords, connectivity, solution, k):
-        raise NotImplementedError
+#     def construct_data_object(self, coords, connectivity, solution, k):
+#         raise NotImplementedError
     
 
-class BurgersDataset(InMemoryDataset):
+class BurgersDataset(Dataset):
     def __init__(self, root, transform=None, pre_transform=None):
         self.pre_transform = pre_transform
-        super(BurgersDataset, self).__init__(root, transform, pre_transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-        self.process()
+        # super(BurgersDataset, self).__init__(root, transform, pre_transform)
+        self.raw_dir = os.path.join(root, 'raw')
+        self.processed_dir = os.path.join(root, 'processed')
+        self.processed_paths = [os.path.join(self.processed_dir, 'burgers_data.pt')]
+        if not os.path.exists(self.processed_dir):
+            os.makedirs(self.processed_dir)
+        if not os.path.exists(self.processed_paths[0]):
+            self.process()
+        self.data = torch.load(self.processed_paths[0])
+        
     
     @property
     def raw_file_names(self):
@@ -59,13 +66,10 @@ class BurgersDataset(InMemoryDataset):
     def process(self):
         data_list = []
         # load mesh
-        X_list = []
-        lines_list = []
-        lines_length_list = []
         with h5py.File(os.path.join(self.raw_dir, self.mesh_file_names[3]), 'r') as f:
             X = f['X'][:]
 
-        for i in range(100):
+        for i in range(400):
             window_size = 16
             pos = torch.tensor(X, dtype=torch.float)
             pos_x = pos[:, 0].unsqueeze(1)
@@ -82,26 +86,32 @@ class BurgersDataset(InMemoryDataset):
                 
                 # take two sequential time steps and form the input and label for the entire temporal sequence
                 for i in range(dset.shape[0] - 1):
-                    x = torch.tensor(dset[i], dtype=torch.float)
+                    x = torch.tensor(dset[i], dtype=torch.float).unsqueeze(1)
                     x = np.concatenate((x, pos_x, pos_y), axis=1).reshape(len(x_values), len(y_values), 3)
-                    x_next = torch.tensor(dset[i + 1], dtype=torch.float)
+                    x_next = torch.tensor(dset[i + 1], dtype=torch.float).reshape(len(x_values), len(y_values), 1)
                     # at each time step, sample several windows as the actual input and label
-                    for j in range(10):
-                        idx_x = np.random.randint(0, len(x_values) - 1 - window_size / 2)
-                        idx_y = np.random.randint(0, len(y_values) - 1 - window_size / 2)
-                        x = self._get_window(x, idx_x, idx_y, window_size)
-                        x_next = self._get_window(x_next, idx_x, idx_y, window_size)
-                        
-                        data = Data(x=x, y=x_next)
+                    for j in range(30):
+                        idx_x = np.random.randint(0, len(x_values) - 1 - window_size)
+                        idx_y = np.random.randint(0, len(y_values) - 1 - window_size)
+                        x_window = self._get_window(x, idx_x, idx_y, window_size)
+                        x_next_window = self._get_window(x_next, idx_x, idx_y, window_size)
+                        x_window = torch.tensor(x_window, dtype=torch.float)
+                        x_next_window = torch.tensor(x_next_window, dtype=torch.float)
+                        data = [x_window, x_next_window]
 
                         data_list.append(data)
 
-        data, slices = self.collate(data_list)
-        torch.save((data, slices), self.processed_paths[0])
+        torch.save(data_list, self.processed_paths[0])
     
     def _get_window(self, data, i_x, i_y, w_size):
         if len(data.shape) == 2:
             x = data[i_x:i_x + w_size, i_y:i_y + w_size]
         elif len(data.shape) == 3:
-            x = data[:, i_x:i_x + w_size, i_y:i_y + w_size]
+            x = data[i_x:i_x + w_size, i_y:i_y + w_size, :]
         return x
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        return self.data[idx]
