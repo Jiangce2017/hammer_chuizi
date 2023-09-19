@@ -70,7 +70,7 @@ class BurgersDataset(Dataset):
             X = f['X'][:]
 
         for i in range(400):
-            window_size = 16
+            window_size = 8
             pos = torch.tensor(X, dtype=torch.float)
             pos_x = pos[:, 0].unsqueeze(1)
             pos_y = pos[:, 1].unsqueeze(1)

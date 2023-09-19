@@ -72,6 +72,12 @@ def train():
         train_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
         train_r2 += r2loss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
 
+        optimizer.zero_grad()
+        loss = F.mse_loss(pred, y, reduction='mean')
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+
     train_mse /= len(train_loader)
     train_l2 /= len(train_loader)
     train_r2 /= len(train_loader)
@@ -83,7 +89,6 @@ def test(test_loader):
     test_mse = 0.0
     test_l2 = 0.0
     test_r2 = 0.0     
-    test_mse_center = 0.0
     with torch.no_grad():
         for data in test_loader:
             x, y = data[0], data[1]
@@ -97,15 +102,15 @@ def test(test_loader):
     test_mse /= len(test_loader)
     test_l2 /= len(test_loader)
     test_r2 /= len(test_loader)
-    test_mse_center /= len(test_loader)
-    return test_mse,test_l2,test_r2,test_mse_center
+
+    return test_mse, test_l2, test_r2
 
 modes = 8 # number of frequency modes
 width = 20 # dimension of latent space
 batch_size = 16
 learning_rate = 0.001
 epochs = 200
-window_size = 16
+window_size = 8
 
 results_dir = 'general_FNO/results'
 
@@ -125,8 +130,8 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteratio
 cur_ep = 0
 
 myloss = LpLoss(size_average=False)
-train_logger = Logger(osp.join(results_dir, 'train.log'), ['epoch', 'train_mse', 'train_l2', 'train_r2', 'train_mse_center', \
-                                                            'test_mse', 'test_l2', 'test_r2', 'test_mse_center'])
+train_logger = Logger(osp.join(results_dir, 'train.log'), ['epoch', 'train_mse', 'train_l2', 'train_r2', \
+                                                            'test_mse', 'test_l2', 'test_r2'])
 
 for ep in range(cur_ep, epochs):
     start_time = default_timer()
@@ -135,8 +140,8 @@ for ep in range(cur_ep, epochs):
     end_time = default_timer()
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
-    print('train_mse: {:.4f}, train_l2: {:.4f}, train_r2: {:.4f}, train_mse_center: {:.4f}'.format(train_mse, train_l2, train_r2))
-    print('test_mse: {:.4f}, test_l2: {:.4f}, test_r2: {:.4f}, test_mse_center: {:.4f}'.format(test_mse, test_l2, test_r2))
+    print('train_mse: {:.4f}, train_l2: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_l2, train_r2))
+    print('test_mse: {:.4f}, test_l2: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_l2, test_r2))
     train_logger.log({
         'epoch': ep,
         'train_mse': train_mse,
