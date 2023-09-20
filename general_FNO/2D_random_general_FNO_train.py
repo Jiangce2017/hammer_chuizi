@@ -2,15 +2,17 @@ import os.path as osp
 import os
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 import pickle
 from numpy import linalg as LA
-from models import r2loss
+# from models import r2loss
 from FNO_2d import FNO2d
 from MatDataset import BurgersDataset
 
 import torch.nn.functional as F
 import torch
 from torch.utils.data import DataLoader
+from sklearn.metrics import r2_score
 from utilities3 import *
 from timeit import default_timer
 import csv
@@ -54,6 +56,18 @@ class Logger(object):
         self.logger.writerow(write_values)
         self.log_file.flush()
 
+def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
+    xx, yy = np.meshgrid(np.linspace(0, 1, window_size), np.linspace(0, 1, window_size))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    axs[0].contourf(xx, yy, y.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
+    axs[0].set_title('Ground truth')
+    axs[1].contourf(xx, yy, y_pred.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
+    axs[1].set_title('Prediction')
+    axs[2].contourf(xx, yy, np.abs(y.cpu().detach().numpy().reshape(window_size, window_size) - y_pred.cpu().detach().numpy().reshape(window_size, window_size)), levels=100)
+    axs[2].set_title('Absolute difference')
+    plt.savefig(osp.join(folder, 'ep{}_batch{}.png'.format(epoch, batch_idx)))
+    plt.close()
+
 def train():
     model.train()
     train_mse = 0.0
@@ -70,7 +84,7 @@ def train():
 
         train_mse += F.mse_loss(pred, y, reduction='mean').item()
         train_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
-        train_r2 += r2loss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
+        train_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
 
         optimizer.zero_grad()
         loss = F.mse_loss(pred, y, reduction='mean')
@@ -97,7 +111,7 @@ def test(test_loader):
             pred = model(x).view(batch_size, window_size, window_size , 1)
             test_mse += F.mse_loss(pred, y, reduction='mean').item()
             test_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
-            test_r2 += r2loss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
+            test_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
     
     test_mse /= len(test_loader)
     test_l2 /= len(test_loader)
@@ -154,3 +168,9 @@ for ep in range(cur_ep, epochs):
 
     if ep % 10 == 0:
         torch.save(model.state_dict(), osp.join(results_dir, 'model_ep{}.pth'.format(ep)))
+        # plot prediction
+        x, y = next(iter(test_loader))
+        x = x.to(device)
+        y = y.to(device)
+        pred = model(x).view(batch_size, window_size, window_size , 1)
+        plot_prediction(window_size, y[0], pred[0], ep, 0, results_dir)
