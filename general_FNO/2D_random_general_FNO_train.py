@@ -7,7 +7,7 @@ import pickle
 from numpy import linalg as LA
 # from models import r2loss
 from FNO_2d import FNO2d
-from MatDataset import BurgersDataset
+from MatDataset import BurgersDataset, BurgersDatasetWhole
 
 import torch.nn.functional as F
 import torch
@@ -124,13 +124,14 @@ width = 20 # dimension of latent space
 batch_size = 16
 learning_rate = 0.001
 epochs = 200
-window_size = 8
+window_size = 81
 
 results_dir = 'general_FNO/results'
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dataset = BurgersDataset(root=data_dir)
+# dataset = BurgersDataset(root=data_dir)
+dataset = BurgersDatasetWhole(root=data_dir)
 train_dataset, test_dataset = train_test_split(dataset)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -144,8 +145,8 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteratio
 cur_ep = 0
 
 myloss = LpLoss(size_average=False)
-train_logger = Logger(osp.join(results_dir, 'train.log'), ['epoch', 'train_mse', 'train_l2', 'train_r2', \
-                                                            'test_mse', 'test_l2', 'test_r2'])
+train_logger = Logger(osp.join(results_dir, 'train.log'), ['epoch', 'train_mse', 'train_r2', \
+                                                            'test_mse', 'test_r2'])
 
 for ep in range(cur_ep, epochs):
     start_time = default_timer()
@@ -154,15 +155,13 @@ for ep in range(cur_ep, epochs):
     end_time = default_timer()
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
-    print('train_mse: {:.4f}, train_l2: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_l2, train_r2))
-    print('test_mse: {:.4f}, test_l2: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_l2, test_r2))
+    print('train_mse: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_r2))
+    print('test_mse: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_r2))
     train_logger.log({
         'epoch': ep,
         'train_mse': train_mse,
-        'train_l2': train_l2,
         'train_r2': train_r2,
         'test_mse': test_mse,
-        'test_l2': test_l2,
         'test_r2': test_r2,
     })
 
