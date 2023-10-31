@@ -3,4 +3,5 @@
     "nx": "40",
 	"Add_base": "1",
 	"num_samples": "10000",
+	"base_depth": "50e-3"
 }

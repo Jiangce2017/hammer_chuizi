@@ -439,7 +439,7 @@ for valid_model_name in total_model_names:
     y_normalizer = y_normalizer.to(device)
     train_logger = Logger(
         osp.join(results_dir, valid_model_name+'_train.log'),
-        ['ep', 'train_mse','train_l2','train_r2','train_mse_center','test_mse','test_l2','test_r2','test_mse_center']
+        ['ep', 'train_mse','train_l2','train_r2','train_mse_center','test_mse','test_l2','test_r2','test_mse_center','global_train_mse','global_train_l2','global_train_r2','global_test_mse','global_test_l2','global_test_r2']
     )
     
     world_res = resolution*2
@@ -470,6 +470,12 @@ for valid_model_name in total_model_names:
             'test_l2': test_l2,
             'test_r2': test_r2,
             'test_mse_center':test_mse_center,
+            'global_train_mse': global_train_mse,
+            'global_train_l2': global_train_l2,
+            'global_train_r2': global_train_r2,
+            'global_test_mse': global_test_mse,
+            'global_test_l2': global_test_l2,
+            'global_test_r2': global_test_r2
         })
         if test_r2 > cur_test_r2:
             cur_test_r2 = test_r2
