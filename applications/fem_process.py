@@ -18,12 +18,14 @@ from jax_am.fem.utils import save_sol
 
 from applications.fem.thermal.models import Thermal, initialize_hash_map, update_hash_map, get_active_mesh
 
-from memory_profiler import profile
+#from memory_profiler import profile
 import tracemalloc
 import gc
+import time
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-data_dir = os.path.join('/mnt/c/Users/jiang', 'data','hammer') 
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#data_dir = os.path.join('/mnt/c/Users/jiang', 'data','hammer') 
+data_dir = os.path.join(Path.home(), 'data','hammer') 
 
 #@profile
 def ded_cad_model(parameter_json_file, problem_name):
@@ -48,11 +50,11 @@ def ded_cad_model(parameter_json_file, problem_name):
     ele_type = 'HEX8'
     #problem_name = "geo_test_cone_mesh"
     
-    femfile_dir = osp.join(data_dir,"meshes",problem_name)
+    femfile_dir = osp.join(data_dir,"meshes","extend_base_bjorn",problem_name)
     files = glob.glob(osp.join(femfile_dir, f'*'))
-    
+    print(files)
     t1 = default_timer()
-    for ffi,f in enumerate(files[:1]):
+    for ffi,f in enumerate(files[1:]):
         fem_file = pickle.load( open(f, "rb" ) )   
         path_dx = fem_file["dx"]
         toolpath = fem_file["toolpath"]
@@ -60,8 +62,8 @@ def ded_cad_model(parameter_json_file, problem_name):
         #fem_points = fem_file["vertices"]
         hexahedron = fem_file["hexahedra"]
         dx = fem_file["dx"]
-        dt = fem_file["dt"]
-        #dt = 0.2
+        #dt = fem_file["dt"]
+        dt = 0.2
         sampled_deposits = fem_file["sampled_deposits"]
 
         vtk_dir = os.path.join(data_dir,"vtk",problem_name,Path(f).stem)
@@ -129,8 +131,8 @@ def ded_cad_model(parameter_json_file, problem_name):
                     sol = solver(problem, linear=True,use_petsc=True)
                     problem.update_int_vars(sol)
                     full_sol = full_sol.at[points_map_active].set(sol)
-                    #vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
-                    #save_sol(problem, sol, vtk_path)
+                    vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_inactive_{j:05d}.vtu")
+                    save_sol(problem, sol, vtk_path)
             num_laser_on = 1
             laser_center = np.array([toolpath[i,1], toolpath[i,2], toolpath[i,3]])
             #print(f"laser center = {laser_center}")   
@@ -145,7 +147,9 @@ def ded_cad_model(parameter_json_file, problem_name):
                         print(f"No element born")
                         # problem.old_sol = old_sol
             else:
-                #print(f"New elements born {i}")        
+                start = time.time()     
+                print(f"New elements born {i}")
+                   
                 problem = Thermal(active_mesh, vec=vec, dim=dim, dirichlet_bc_info=[[],[],[]], neumann_bc_info=neumann_bc_info_laser_on, 
                                   additional_info=(sol, rho, Cp, dt, external_faces))    
                 sol = solver(problem, linear=True,use_petsc=True)
@@ -153,9 +157,11 @@ def ded_cad_model(parameter_json_file, problem_name):
                 full_sol = full_sol.at[points_map_active].set(sol)
                 j=0
                 vtk_path = os.path.join(vtk_dir, f"u_{i:05d}_active_{j:05d}.vtu")
-                if i in sampled_deposits:
-                    save_sol(problem, sol, vtk_path)
-                    print(f"save {i} deposition")
+                #if i in sampled_deposits:
+                save_sol(problem, sol, vtk_path)
+                print(f"save {i} deposition")
+                end = time.time()
+                print("time cost: {}".format(end-start))
 
             active_cell_truth_tab_old = active_cell_truth_tab
             gc.collect()
@@ -167,24 +173,25 @@ def ded_cad_model(parameter_json_file, problem_name):
 
 if __name__ == "__main__":
     parameter_json_file = "./am_parameters.json"
-    problem_name = "extend_small_10_base_20"
+    problem_name = "small_10_base_20"
+    #problem_name = "justin_sample_justin_sample"
     
     
-    
-    tracemalloc.start()
     ded_cad_model(parameter_json_file,problem_name)
+    #tracemalloc.start()
     
     
-    print("No.of tracked objects before calling get method")
-    print(len( gc.get_objects() ) )
-    gc.collect()
+    
+    #print("No.of tracked objects before calling get method")
+    #print(len( gc.get_objects() ) )
+    #gc.collect()
  
-    print("No.of tracked objects after removing non-referenced objects")
-    print(len( gc.get_objects() ) )
+    #print("No.of tracked objects after removing non-referenced objects")
+    #print(len( gc.get_objects() ) )
  
     
     # displaying the memory
-    print(tracemalloc.get_traced_memory())
+    #print(tracemalloc.get_traced_memory())
      
     # stopping the library
-    tracemalloc.stop()                                                                                                                                                                                                      
+    #tracemalloc.stop()                                                                                                                                                                                                      

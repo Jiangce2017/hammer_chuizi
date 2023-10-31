@@ -6,5 +6,5 @@ __all__ = [
     'plot_element_adding',
     'plot_toolpath',
     'plot_toolpath_with_voxels',
-    'plot_data',
+    'plot_data'
 ]

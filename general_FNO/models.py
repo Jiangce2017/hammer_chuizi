@@ -84,7 +84,7 @@ class FNO3d(nn.Module):
         self.width = width
         self.padding = 6 # pad the domain if input is non-periodic
 
-        self.p = nn.Linear(4, self.width)# input channel is 11: (T, Hx,Hy,Hz, bif1, bif2,rho, x, y, z) #10
+        self.p = nn.Linear(10, self.width)# input channel is 11: (T, Hx,Hy,Hz, bif1, bif2,rho, x, y, z) #10
         self.conv0 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
         self.conv1 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
         self.conv2 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
@@ -100,31 +100,6 @@ class FNO3d(nn.Module):
         self.q = MLP(self.width, 1, self.width * 4) # output channel is 1: u(x, y)
 
     def forward(self, x):
-        
-
-
-        # x_train_global = x_train_batch.tile((1,1,1,1,1))
-        # y_train_global = y_train_batch.tile((1,1,1,1,1))
-        # x_train_global = x_train_global.view(-1,batch_size,world_res,world_res,world_res,7)
-        # y_train_global = y_train_global.view(-1,batch_size,world_res,world_res,world_res,1)            
-        # i_window_batch = 0
-        
-        # x_train = x_train_global[i_window_batch]
-        # y_train = y_train_global[i_window_batch]
-        # window = window_global[i_window_batch]
-        
-        
-        # x_train = x_train[window].reshape((batch_size,w_size,w_size,w_size,-1))
-        # # #x_train[:,:,:,:,:6] = a_normalizer.encode(x_train[:,:,:,:,:6])
-        
-        
-        # y_train = y_train[window].reshape((batch_size,w_size,w_size,w_size,-1))
-        
-        # x_train, y_train = x_train.to(device), y_train.to(device)
-
-        
-        # rho = x_train[:,:,:,:,[-1]]
-        x = x[:,:,:,:,[0]]
 
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
@@ -148,14 +123,14 @@ class FNO3d(nn.Module):
         x1 = self.conv2(x)
         x1 = self.mlp2(x1)
         x2 = self.w2(x)
-        x = x1 + x2
+        x = x + x2
         x = F.gelu(x)
 
         x1 = self.conv3(x)
         x1 = self.mlp3(x1)
         x2 = self.w3(x)
         x = x1 + x2
-
+        x = F.sigmoid(x)
         x = x[..., :-self.padding]
         x = self.q(x)
         x = x.permute(0, 2, 3, 4, 1) # pad the domain if input is non-periodic
@@ -192,8 +167,6 @@ def get_window(sample_region,world_res,ni,mi,li,w_radius,w_size,batch_size,x_tra
     y_train = y_train_batch.tile((1,1,1,1,1))
     x_train = x_train.view(batch_size,world_res,world_res,world_res,-1)
     y_train = y_train.view(batch_size,world_res,world_res,world_res,1)            
-    
-    
     
     x_train = x_train[window].reshape((batch_size,w_size,w_size,w_size,-1))          
     y_train = y_train[window].reshape((batch_size,w_size,w_size,w_size,-1))

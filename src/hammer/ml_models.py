@@ -93,43 +93,42 @@ class FNO3d(nn.Module):
         self.mlp1 = MLP(self.width, self.width, self.width)
         self.mlp2 = MLP(self.width, self.width, self.width)
         self.mlp3 = MLP(self.width, self.width, self.width)
-        self.w0 = nn.Conv3d(self.width, self.width, 1)
-        self.w1 = nn.Conv3d(self.width, self.width, 1)
-        self.w2 = nn.Conv3d(self.width, self.width, 1)
-        self.w3 = nn.Conv3d(self.width, self.width, 1)
+        # self.w0 = nn.Conv3d(self.width, self.width, 1)
+        # self.w1 = nn.Conv3d(self.width, self.width, 1)
+        # self.w2 = nn.Conv3d(self.width, self.width, 1)
+        # self.w3 = nn.Conv3d(self.width, self.width, 1)
         self.q = MLP(self.width, 1, self.width * 4) # output channel is 1: u(x, y)
 
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
-        #print(x.shape)
         x = self.p(x)
         x = x.permute(0, 4, 1, 2, 3)
         x = F.pad(x, [0,self.padding]) # pad the domain if input is non-periodic
 
-        x1 = self.conv0(x)
-        x1 = self.mlp0(x1)
-        x2 = self.w0(x)
-        x = x1 + x2
+        x = self.conv0(x)
+        x = self.mlp0(x)
+        #x2 = self.w0(x)
+        #x = x1 
         x = F.gelu(x)
 
-        x1 = self.conv1(x)
-        x1 = self.mlp1(x1)
-        x2 = self.w1(x)
-        x = x1 + x2
+        x = self.conv1(x)
+        x = self.mlp1(x)
+        #x2 = self.w1(x)
+        #x = x1 
         x = F.gelu(x)
 
-        x1 = self.conv2(x)
-        x1 = self.mlp2(x1)
-        x2 = self.w2(x)
-        x = x1 + x2
+        x = self.conv2(x)
+        x = self.mlp2(x)
+        #x2 = self.w2(x)
+        #x = x1 
         x = F.gelu(x)
 
-        x1 = self.conv3(x)
-        x1 = self.mlp3(x1)
-        x2 = self.w3(x)
-        x = x1 + x2
-
+        x = self.conv3(x)
+        x = self.mlp3(x)
+        #x2 = self.w3(x)
+        #x = x1 
+        x = F.sigmoid(x)
         x = x[..., :-self.padding]
         x = self.q(x)
         x = x.permute(0, 2, 3, 4, 1) # pad the domain if input is non-periodic
@@ -145,10 +144,11 @@ class FNO3d(nn.Module):
         gridz = torch.tensor(np.linspace(0, 1, size_z), dtype=torch.float)
         gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
         return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
+    
 
-class FNO3d_local(nn.Module):
+class CNN(nn.Module):
     def __init__(self, modes1, modes2, modes3, width):
-        super(FNO3d_local, self).__init__()
+        super(CNN, self).__init__()
 
         """
         The overall network. It contains 4 layers of the Fourier layer.
@@ -170,14 +170,6 @@ class FNO3d_local(nn.Module):
         self.padding = 6 # pad the domain if input is non-periodic
 
         self.p = nn.Linear(10, self.width)# input channel is 11: (T, Hx,Hy,Hz, bif1, bif2,rho, x, y, z) #10
-        self.conv0 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
-        self.conv1 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
-        self.conv2 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
-        self.conv3 = SpectralConv3d(self.width, self.width, self.modes1, self.modes2, self.modes3)
-        self.mlp0 = MLP(self.width, self.width, self.width)
-        self.mlp1 = MLP(self.width, self.width, self.width)
-        self.mlp2 = MLP(self.width, self.width, self.width)
-        self.mlp3 = MLP(self.width, self.width, self.width)
         self.w0 = nn.Conv3d(self.width, self.width, 1)
         self.w1 = nn.Conv3d(self.width, self.width, 1)
         self.w2 = nn.Conv3d(self.width, self.width, 1)
@@ -187,34 +179,29 @@ class FNO3d_local(nn.Module):
     def forward(self, x):
         grid = self.get_grid(x.shape, x.device)
         x = torch.cat((x, grid), dim=-1)
-        #print(x.shape)
         x = self.p(x)
         x = x.permute(0, 4, 1, 2, 3)
         x = F.pad(x, [0,self.padding]) # pad the domain if input is non-periodic
 
-        x1 = self.conv0(x)
-        x1 = self.mlp0(x1)
-        x2 = self.w0(x)
-        x = x1 + x2
+        
+        x = self.w0(x)
+        #x = self.mlp0(x)
         x = F.gelu(x)
 
-        x1 = self.conv1(x)
-        x1 = self.mlp1(x1)
-        x2 = self.w1(x)
-        x = x1 + x2
+        
+        x = self.w1(x)
+        #x = self.mlp1(x)
         x = F.gelu(x)
 
-        x1 = self.conv2(x)
-        x1 = self.mlp2(x1)
-        x2 = self.w2(x)
-        x = x1 + x2
+        
+        x = self.w2(x)
+        #x = self.mlp2(x)
         x = F.gelu(x)
 
-        x1 = self.conv3(x)
-        x1 = self.mlp3(x1)
-        x2 = self.w3(x)
-        x = x1 + x2
-
+        
+        x = self.w3(x)
+        #x = self.mlp3(x)
+        x = F.sigmoid(x)
         x = x[..., :-self.padding]
         x = self.q(x)
         x = x.permute(0, 2, 3, 4, 1) # pad the domain if input is non-periodic
@@ -229,11 +216,8 @@ class FNO3d_local(nn.Module):
         gridy = gridy.reshape(1, 1, size_y, 1, 1).repeat([batchsize, size_x, 1, size_z, 1])
         gridz = torch.tensor(np.linspace(0, 1, size_z), dtype=torch.float)
         gridz = gridz.reshape(1, 1, 1, size_z, 1).repeat([batchsize, size_x, size_y, 1, 1])
-        return torch.cat((gridx, gridy, gridz), dim=-1).to(device)
-    
-# def CNN3d(nn.Module):
-#  def __init__(self, modes1, modes2, modes3, width):
-#         super(CNN3d, self).__init__()
+        return torch.cat((gridx, gridy, gridz), dim=-1).to(device)    
+
 
 def r2loss(pred, y):
     #print(pred.shape,y.shape)

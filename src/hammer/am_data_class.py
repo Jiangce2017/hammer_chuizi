@@ -104,6 +104,17 @@ class AMVoxel(VoxelDataClass):
         self.int_coords[:,0]+=x_shift
         self.int_coords[:,1]+=y_shift
         self.int_coords[:,2]+=z_shift
+
+    def to(self,data_class:str)-> object:
+        if data_class == "Graph":
+            obj = AMGraph()
+        elif data_class == "Mesh":
+            obj = AMMesh()
+        else:
+            raise NotImplementedError  
+        data = self.to_data(data_class)
+        obj.set_data(data)
+        return obj
         
 
 

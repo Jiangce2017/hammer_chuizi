@@ -6,6 +6,12 @@ import os.path as osp
 import trimesh
 import pickle
 
+# TESTING
+import plotly.graph_objects as go
+#from plotly_voxel_display.VoxelData import VoxelData
+from matplotlib import cm
+import matplotlib
+
 
 def plot_surf_mesh(tris):
     # Create a new plot
@@ -102,11 +108,7 @@ def plot_toolpath_with_voxels(toolpath, voxels):
 
 
 ########################################################################################################################
-# TESTING
-import plotly.graph_objects as go
-#from plotly_voxel_display.VoxelData import VoxelData
-from matplotlib import cm
-import matplotlib
+
 
 
 def plotly_fig(subsample, title):
@@ -203,19 +205,28 @@ def matplot_voxels(arr, color_bar_label, title=None, minimum=None, maximum=None,
 
     cax = fig.add_axes([ax.get_position().x1 + 0.01, ax.get_position().y0, 0.02, ax.get_position().height])
     cbar = plt.colorbar(m, cax=cax, aspect=0.5)
-    cbar.ax.tick_params(labelsize=fontsize/2)
-    cbar.set_label(color_bar_label, fontsize=fontsize/2)
+    cbar.ax.tick_params(labelsize=fontsize)
+    cbar.set_label(color_bar_label, fontsize=fontsize)
     plt.ticklabel_format(style="plain")
-    ax.voxels(arr, edgecolor="k", facecolors=cmap(norm(arr)), alpha=0.5)
+    ax.voxels(arr, edgecolor="None", facecolors=cmap(norm(arr)), alpha=0.5)
     # ax.invert_zaxis()
 
     # Display the plot
     if title != None:
         ax.set_title(title, fontsize=fontsize)
 
-    ax.tick_params(axis='x', labelsize=fontsize/2)
-    ax.tick_params(axis='y', labelsize=fontsize / 2)
-    ax.tick_params(axis='z', labelsize=fontsize / 2)
+    # ax.tick_params(axis='x', labelsize=fontsize/2)
+    # ax.tick_params(axis='y', labelsize=fontsize / 2)
+    # ax.tick_params(axis='z', labelsize=fontsize / 2)
+    ax.set_axis_off()
+
+    # Hide grid lines
+    ax.grid(False)
+
+    # Hide axes ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
     return ax, fig
 
 ########################################################################################################################
@@ -229,8 +240,8 @@ def plot_data(true, prediction, windows, time_steps, sample_indices, file_name, 
         pred_u = prediction.reshape(num_samples, -1)
         mse = np.mean((pred_u - true_u) ** 2, axis=1)
 
-        worst_sample_indices = np.argsort(mse)[-number_samples:]       
-        sample_indices = np.flip(worst_sample_indices)
+        worst_sample_indices = np.argsort(mse)[-number_samples:]
+        sample_indices = worst_sample_indices
 
 
 
@@ -253,7 +264,7 @@ def plot_data(true, prediction, windows, time_steps, sample_indices, file_name, 
             title1 = title2 = title3 = title4 = None
         # Plot the True Sample
         count += 1
-        ax1, fig1 = matplot_voxels(u_true_sample, "Temperature",title=title1, subplot=(number_samples, columns, count), fig=fig,
+        ax1, fig1 = matplot_voxels(u_true_sample, "$^{\circ}C$",title=title1, subplot=(number_samples, columns, count), fig=fig,
                                    fontsize=fontsize)
         ax1.text(-18, -18, 4,
                  "Sample: " + str(index) + "\nTime step: " + str(time_step_sample) + "\nWindow: " + str(window_sample),
@@ -261,24 +272,20 @@ def plot_data(true, prediction, windows, time_steps, sample_indices, file_name, 
 
         # Plot the predicted sample
         count += 1
-        ax2, fig2 = matplot_voxels(u_pred_sample, "Temperature",title=title2, subplot=(number_samples, columns, count), fig=fig,
+        ax2, fig2 = matplot_voxels(u_pred_sample, "$^{\circ}C$",title=title2, subplot=(number_samples, columns, count), fig=fig,
                                    fontsize=fontsize)
 
         # Plot Difference
-        error = u_true_sample - u_pred_sample
+        error = u_pred_sample - u_true_sample
         count += 1
         max_err = np.max(np.abs(error))
-        ax3, fig3 = matplot_voxels(error, "Temperature", title=title3,minimum=-max_err, maximum=max_err, subplot=(number_samples, columns, count), fig=fig, fontsize=fontsize)
-        
-        
-        #c = plt.colorbar()
-        #plt.clim(-max_err, max_err)
+        ax3, fig3 = matplot_voxels(error, "$\Delta ^{\circ}C$", title=title3,minimum=-max_err, maximum=max_err,subplot=(number_samples, columns, count), fig=fig, fontsize=fontsize)
         
         # Plot Percent Error
         # Calculate the percentage errors, handling the case where actual is 0
         u_error = np.where(u_true_sample == 0, 0, np.divide(abs(error), abs(u_true_sample)) * 100)
         count += 1
-        ax4, fig4 = matplot_voxels(u_error, "% Error", title=title4, subplot=(number_samples, columns, count), fig=fig,
+        ax4, fig4 = matplot_voxels(u_error, "$\% Error$", title=title4, subplot=(number_samples, columns, count), fig=fig,
                                    fontsize=fontsize, cmap='Reds')
 
     plt.savefig("figures/" + file_name)

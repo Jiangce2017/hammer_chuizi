@@ -11,9 +11,6 @@ import glob
 from hammer import GeoReader
 from hammer.utilities.plotting import plot_element_adding
 
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
 data_dir = osp.join(Path.home(), 'data','hammer')
 #data_dir = osp.join('/mnt/c/Users/jiang', 'data','hammer')
 
@@ -36,9 +33,12 @@ def go_meshes(args):
     for f in files:
         os.remove(f)
     
-    Same_base_flag=True
+    Same_base_flag=False
+    Same_base_flag=False
     geo_reader = GeoReader(dx,nx,Add_base,Same_base_flag)
     files = glob.glob(os.path.join(geo_dir, f'*.stl'))
+    files.sort()
+    files.sort()
     for i,f in enumerate(files):
         geo_reader.load_file(f)
         geo_reader.voxelize()
@@ -49,10 +49,20 @@ def go_meshes(args):
         save_file_path = osp.join(femfile_dir, Path(f).stem+".p")
         geo_reader.save_hex_mesh(save_file_path)
         print("Finished {:d} file!".format(i))
-        if i == 0:
-            #geo_reader.plot_fem_mesh()
-            toolpath = geo_reader.get_toolpath()
-            geo_reader.plot_part_toolpath(toolpath)
+        # print(geo_reader._voxel_inds.shape)
+        # bif = geo_reader.calculate_bif()
+        # print(bif.shape)
+        # if i == 0:
+        #     #geo_reader.plot_fem_mesh()
+        #     toolpath = geo_reader.get_toolpath()
+        #     geo_reader.plot_part_toolpath(toolpath)
+        # print(geo_reader._voxel_inds.shape)
+        # bif = geo_reader.calculate_bif()
+        # print(bif.shape)
+        # if i == 0:
+        #     #geo_reader.plot_fem_mesh()
+        #     toolpath = geo_reader.get_toolpath()
+        #     geo_reader.plot_part_toolpath(toolpath)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
