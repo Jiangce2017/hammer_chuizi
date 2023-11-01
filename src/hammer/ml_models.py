@@ -93,10 +93,6 @@ class FNO3d(nn.Module):
         self.mlp1 = MLP(self.width, self.width, self.width)
         self.mlp2 = MLP(self.width, self.width, self.width)
         self.mlp3 = MLP(self.width, self.width, self.width)
-        # self.w0 = nn.Conv3d(self.width, self.width, 1)
-        # self.w1 = nn.Conv3d(self.width, self.width, 1)
-        # self.w2 = nn.Conv3d(self.width, self.width, 1)
-        # self.w3 = nn.Conv3d(self.width, self.width, 1)
         self.q = MLP(self.width, 1, self.width * 4) # output channel is 1: u(x, y)
 
     def forward(self, x):
@@ -108,26 +104,18 @@ class FNO3d(nn.Module):
 
         x = self.conv0(x)
         x = self.mlp0(x)
-        #x2 = self.w0(x)
-        #x = x1 
         x = F.gelu(x)
 
         x = self.conv1(x)
         x = self.mlp1(x)
-        #x2 = self.w1(x)
-        #x = x1 
         x = F.gelu(x)
 
         x = self.conv2(x)
         x = self.mlp2(x)
-        #x2 = self.w2(x)
-        #x = x1 
         x = F.gelu(x)
 
         x = self.conv3(x)
         x = self.mlp3(x)
-        #x2 = self.w3(x)
-        #x = x1 
         x = F.sigmoid(x)
         x = x[..., :-self.padding]
         x = self.q(x)
