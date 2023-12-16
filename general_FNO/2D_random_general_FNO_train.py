@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pickle
 from numpy import linalg as LA
 # from models import r2loss
-from FNO_2d import FNO2d
+from FNO_2d import FNO2d, DomainPartitioning2d
 from MatDataset import BurgersDataset, BurgersDatasetWhole
 
 import torch.nn.functional as F
@@ -80,7 +80,7 @@ def train():
         x = x.to(device)
         y = y.to(device)
 
-        pred = model(x).view(batch_size, window_size, window_size , 1)
+        pred = model(x)
 
         train_mse += F.mse_loss(pred, y, reduction='mean').item()
         train_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
@@ -124,7 +124,7 @@ width = 20 # dimension of latent space
 batch_size = 16
 learning_rate = 0.001
 epochs = 200
-window_size = 81
+window_size = 8
 
 results_dir = 'general_FNO/results'
 
@@ -138,7 +138,8 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 iterations = epochs * (len(train_loader) // batch_size)
 
-model = FNO2d(modes1=modes, modes2=modes, width=width).to(device)
+model = DomainPartitioning2d(modes, modes, width, window_size).to(device)
+# model = FNO2d(modes1=modes, modes2=modes, width=width).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iterations)
 

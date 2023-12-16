@@ -142,3 +142,80 @@ class FNO2d(nn.Module):
         gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
         gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
         return torch.cat((gridx, gridy), dim=-1).to(device)
+
+
+class DomainPartitioning2d(nn.Module):
+    def __init__(self, modes1, modes2, width, subdomain_length):
+        super(DomainPartitioning2d, self).__init__()
+        self.sub_size = subdomain_length
+        self.fno = FNO2d(modes1, modes2, width)
+
+    def forward(self, x):
+        # for input data matrix x, partition the domain into num_partitions subdomains
+        # run FNO on each of the subdomains, and then combine the results
+        # re-partition the domain into num_partitions subdomains with a slight displacement
+        # run FNO on each of the subdomains, and then combine the results
+        # average the results from the two runs as the final output y
+        
+        # partition the domain into num_partitions subdomains
+        x_list_1 = self.get_partition_domain(x)
+        x_list_2 = self.get_partition_domain(x, displacement=self.sub_size//2)
+
+        # run FNO on each of the subdomains
+        y_list_1 = []
+        for x_sub in x_list_1:
+            y_sub = self.fno(x_sub)
+            y_list_1.append(y_sub)
+        y_list_2 = []
+        for x_sub in x_list_2:
+            y_sub = self.fno(x_sub)
+            y_list_2.append(y_sub)
+
+        y_1 = self.reconstruct_from_partitions(x, y_list_1, displacement=0)
+        y_2 = self.reconstruct_from_partitions(x, y_list_2, displacement=self.sub_size//2)
+
+        # average the results from the two runs as the final output y based on displacement
+        y = y_1.clone()
+        y[:, self.sub_size//2:, self.sub_size//2:, :] = (y_1[:, self.sub_size//2:, self.sub_size//2:, :] + y_2) / 2
+        # y[:, :self.sub_size//2, :self.sub_size//2, :] = y_1[:, :self.sub_size//2, :self.sub_size//2, :]
+
+        return y
+
+
+    def get_partition_domain(self, x, displacement=0):
+        # partition the domain into num_partitions subdomains of the same size
+        x_list = []
+        num_partitions_dim = (x.shape[1] - displacement) // self.sub_size
+        # if the domain can be fully partitioned into subdomains of the same size
+        if (x.shape[1] - displacement) % self.sub_size == 0:
+            for i in range(num_partitions_dim):
+                for j in range(num_partitions_dim):
+                    x_list.append(x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :])
+        # if the domain cannot be fully partitioned into subdomains of the same size
+        else:
+            for i in range(num_partitions_dim):
+                for j in range(num_partitions_dim):
+                    x_list.append(x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :])
+            # add the last subdomain
+            x_list.append(x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :])
+
+        return x_list
+
+    def reconstruct_from_partitions(self, x, x_list, displacement=0):
+        # reconstruct the domain from the partitioned subdomains
+        num_partitions_dim = int(np.sqrt(len(x_list)))
+        x = torch.zeros_like(x[:, displacement:, displacement:, 0].unsqueeze(-1))
+        # if the domain can be fully partitioned into subdomains of the same size
+        if len(x_list) == num_partitions_dim**2:
+            for i in range(num_partitions_dim):
+                for j in range(num_partitions_dim):
+                    x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :] = x_list[i*num_partitions_dim + j]
+        # if the domain cannot be fully partitioned into subdomains of the same size
+        else:
+            for i in range(num_partitions_dim):
+                for j in range(num_partitions_dim):
+                    x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :] = x_list[i*num_partitions_dim + j]
+            # add the last subdomain
+            x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :] = x_list[-1]
+
+        return x
