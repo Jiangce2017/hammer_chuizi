@@ -1,10 +1,7 @@
 import os.path as osp
 import os
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
-from numpy import linalg as LA
 # from models import r2loss
 from FNO_2d import FNO2d, DomainPartitioning2d
 from MatDataset import BurgersDataset, BurgersDatasetWhole
@@ -108,7 +105,7 @@ def test(test_loader):
             x, y = data[0], data[1]
             x = x.to(device)
             y = y.to(device)
-            pred = model(x).view(batch_size, window_size, window_size , 1)
+            pred = model(x)
             test_mse += F.mse_loss(pred, y, reduction='mean').item()
             test_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
             test_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
@@ -172,5 +169,5 @@ for ep in range(cur_ep, epochs):
         x, y = next(iter(test_loader))
         x = x.to(device)
         y = y.to(device)
-        pred = model(x).view(batch_size, window_size, window_size , 1)
-        plot_prediction(window_size, y[0], pred[0], ep, 0, results_dir)
+        pred = model(x)
+        plot_prediction(y[0].shape[0], y[0], pred[0], ep, 0, results_dir)
