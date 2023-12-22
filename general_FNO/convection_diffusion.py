@@ -93,10 +93,13 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         np.random.seed(self.seed)
         solutions = []
         for i in range(self.num_samples):
-            c = np.random.uniform(0.1, 1)
-            d = np.random.uniform(0.1, 1)
+            # c = np.random.uniform(0.1, 1)
+            c = 0.5
+            # d = np.random.uniform(0.1, 1)
+            d = 0.5
             direction = np.random.uniform(0, np.pi)
-            frequency = np.random.randint(1, 5)
+            # frequency = np.random.randint(1, 5)
+            frequency = 10
             convection_diffusion = ConvectionDiffusion(c, d, direction, frequency, self.domain_size, self.resolution, self.num_time_steps, self.dt)
             solution = convection_diffusion.compute()
             solutions.append(solution)
