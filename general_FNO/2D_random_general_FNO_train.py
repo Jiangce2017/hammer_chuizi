@@ -62,10 +62,53 @@ def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
     axs[1].set_title('Prediction')
     axs[2].contourf(xx, yy, np.abs(y.cpu().detach().numpy().reshape(window_size, window_size) - y_pred.cpu().detach().numpy().reshape(window_size, window_size)), levels=100)
     axs[2].set_title('Absolute difference')
-    plt.savefig(osp.join(folder, 'ep{}_batch{}.png'.format(epoch, batch_idx)))
+    plt.savefig(osp.join(folder, 'ep{}_sub_batch{}.png'.format(epoch, batch_idx)))
     plt.close()
 
-def train():
+
+def train_sub_domain(train_loader):
+    model.train()
+    train_mse = 0.0
+    train_l2 = 0.0
+    train_r2 = 0.0
+    reconstructed_r2 = 0.0
+
+    for data in train_loader:
+
+        x, y = data[0], data[1]
+        sub_x_list = model.get_partition_domain(x)
+        sub_y_list = model.get_partition_domain(y)
+        pred_list = []
+        for i in range(len(sub_x_list)):
+            sub_x = sub_x_list[i].to(device)
+            sub_y = sub_y_list[i].to(device)
+
+            pred = model(sub_x)
+            pred_list.append(pred)
+
+            train_mse += F.mse_loss(pred, sub_y, reduction='mean').item()
+            # train_l2 += myloss(pred.view(batch_size, -1), sub_y.view(batch_size, -1)).item()
+            train_l2 += myloss(pred, sub_y).item()
+            train_r2 += r2_score(sub_y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
+
+            optimizer.zero_grad()
+            loss = F.mse_loss(pred, sub_y, reduction='mean')
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+
+        pred_y = model.reconstruct_from_partitions(y, pred_list)
+        reconstructed_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred_y.cpu().detach().numpy().reshape(batch_size, -1))
+
+    train_mse /= (len(train_loader) * len(sub_x_list))
+    train_l2 /= (len(train_loader) * len(sub_x_list))
+    train_r2 /= (len(train_loader) * len(sub_x_list))
+    reconstructed_r2 /= len(train_loader)
+
+    return train_mse, train_l2, train_r2
+
+
+def train(train_loader):
     model.train()
     train_mse = 0.0
     train_l2 = 0.0
@@ -100,21 +143,65 @@ def test(test_loader):
     test_mse = 0.0
     test_l2 = 0.0
     test_r2 = 0.0     
+    reconstructed_r2 = 0.0
     with torch.no_grad():
         for data in test_loader:
             x, y = data[0], data[1]
-            x = x.to(device)
-            y = y.to(device)
-            pred = model(x)
-            test_mse += F.mse_loss(pred, y, reduction='mean').item()
-            test_l2 += myloss(pred.view(batch_size, -1), y.view(batch_size, -1)).item()
-            test_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
-    
-    test_mse /= len(test_loader)
-    test_l2 /= len(test_loader)
-    test_r2 /= len(test_loader)
+            sub_x_list = model.get_partition_domain(x)
+            sub_y_list = model.get_partition_domain(y)
+            pred_list = []
+            for sub_x, sub_y in sub_x_list, sub_y_list:
+                sub_x = sub_x.to(device)
+                sub_y = sub_y.to(device)
+                pred = model(sub_x)
+                pred_list.append(pred)
+                test_mse += F.mse_loss(pred, sub_y, reduction='mean').item()
+                test_l2 += myloss(pred.view(batch_size, -1), sub_y.view(batch_size, -1)).item()
+                test_r2 += r2_score(sub_y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
+        pred_y = model.reconstruct_from_partitions(pred_list)
+        reconstructed_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred_y.reshape(batch_size, -1))
 
-    return test_mse, test_l2, test_r2
+    test_mse /= (len(test_loader) * len(sub_x_list))
+    test_l2 /= (len(test_loader) * len(sub_x_list))
+    test_r2 /= (len(test_loader) * len(sub_x_list))
+    reconstructed_r2 /= len(test_loader)
+
+    return test_mse, test_l2, test_r2, reconstructed_r2
+
+
+def test_sub_domain(test_loader):
+    model.eval()              
+    test_mse = 0.0
+    test_l2 = 0.0
+    test_r2 = 0.0    
+    reconstructed_r2 = 0.0 
+    with torch.no_grad():
+        for data in test_loader:
+            x, y = data[0], data[1]
+            sub_x_list = model.get_partition_domain(x)
+            sub_y_list = model.get_partition_domain(y)
+            pred_list = []
+            for i in range(len(sub_x_list)):
+                sub_x = sub_x_list[i].to(device)
+                sub_y = sub_y_list[i].to(device)
+                pred = model(sub_x)
+                pred_list.append(pred)
+                test_mse += F.mse_loss(pred, sub_y, reduction='mean').item()
+                # test_l2 += myloss(pred.view(batch_size, -1), sub_y.view(batch_size, -1)).item()
+                test_r2 += r2_score(sub_y.cpu().detach().numpy().reshape(batch_size, -1), pred.cpu().detach().numpy().reshape(batch_size, -1))
+                test_l2 += myloss(pred, sub_y).item()
+                # test_r2 += r2_score(sub_y.cpu().detach().numpy(), pred.cpu().detach().numpy())
+
+            pred_y = model.reconstruct_from_partitions(y, pred_list)
+            # test_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred_y.cpu().detach().numpy().reshape(batch_size, -1))
+            reconstructed_r2 += r2_score(y.cpu().detach().numpy().reshape(batch_size, -1), pred_y.cpu().detach().numpy().reshape(batch_size, -1))
+
+    test_mse /= (len(test_loader) * len(sub_x_list))
+    test_l2 /= (len(test_loader) * len(sub_x_list))
+    test_r2 /= (len(test_loader) * len(sub_x_list))
+    reconstructed_r2 /= len(test_loader)
+
+    return test_mse, test_l2, test_r2, reconstructed_r2
 
 modes = 8 # number of frequency modes
 width = 20 # dimension of latent space
@@ -143,13 +230,14 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteratio
 cur_ep = 0
 
 myloss = LpLoss(size_average=False)
-train_logger = Logger(osp.join(results_dir, 'train.log'), ['epoch', 'train_mse', 'train_r2', \
-                                                            'test_mse', 'test_r2'])
+train_logger = Logger(osp.join(results_dir, 'train_sub_batch.log'), ['epoch', 'train_mse', 'train_r2', \
+                                                            'test_mse', 'test_r2', 'reconstructed_r2'])
 
 for ep in range(cur_ep, epochs):
     start_time = default_timer()
-    train_mse, train_l2, train_r2 = train()
-    test_mse, test_l2, test_r2 = test(test_loader)
+    train_mse, train_l2, train_r2 = train_sub_domain(train_loader)
+    # test_mse, test_l2, test_r2 = test(test_loader)
+    test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
     end_time = default_timer()
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
@@ -161,13 +249,23 @@ for ep in range(cur_ep, epochs):
         'train_r2': train_r2,
         'test_mse': test_mse,
         'test_r2': test_r2,
+        'reconstructed_r2': reconstructed_r2
     })
 
     if ep % 10 == 0:
         torch.save(model.state_dict(), osp.join(results_dir, 'model_ep{}.pth'.format(ep)))
         # plot prediction
         x, y = next(iter(test_loader))
-        x = x.to(device)
-        y = y.to(device)
-        pred = model(x)
-        plot_prediction(y[0].shape[0], y[0], pred[0], ep, 0, results_dir)
+        sub_x_list = model.get_partition_domain(x)
+        sub_y_list = model.get_partition_domain(y)
+        pred_list = []
+        for i in range(len(sub_x_list)):
+            sub_x = sub_x_list[i].to(device)
+            sub_y = sub_y_list[i].to(device)
+            pred = model(sub_x)
+            pred_list.append(pred)
+        pred_y = model.reconstruct_from_partitions(y, pred_list)
+        # x = x.to(device)
+        # y = y.to(device)
+        # pred = model(x)
+        plot_prediction(y[0].shape[0], y[0], pred_y[0], ep, 0, results_dir)

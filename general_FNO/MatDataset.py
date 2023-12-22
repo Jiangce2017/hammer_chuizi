@@ -6,7 +6,7 @@ import numpy as np
 import scipy.io
 import h5py
 import sklearn.metrics
-from torch_geometric.data import Data, InMemoryDataset
+# from torch_geometric.data import Data, InMemoryDataset
 from torch.utils.data import Dataset
 import torch.nn as nn
 

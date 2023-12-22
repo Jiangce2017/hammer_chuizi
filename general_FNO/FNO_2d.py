@@ -85,7 +85,7 @@ class FNO2d(nn.Module):
         self.width = width
         self.padding = 9 # pad the domain if input is non-periodic
 
-        self.p = nn.Linear(5, self.width) # input channel is 3: (a(x, y), x, y)
+        self.p = nn.Linear(3, self.width) # input channel is 3: (a(x, y), x, y)
         self.conv0 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv1 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv2 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
@@ -150,36 +150,39 @@ class DomainPartitioning2d(nn.Module):
         self.sub_size = subdomain_length
         self.fno = FNO2d(modes1, modes2, width)
 
-    def forward(self, x):
-        # for input data matrix x, partition the domain into num_partitions subdomains
-        # run FNO on each of the subdomains, and then combine the results
-        # re-partition the domain into num_partitions subdomains with a slight displacement
-        # run FNO on each of the subdomains, and then combine the results
-        # average the results from the two runs as the final output y
+    # def forward(self, x):
+    #     # for input data matrix x, partition the domain into num_partitions subdomains
+    #     # run FNO on each of the subdomains, and then combine the results
+    #     # re-partition the domain into num_partitions subdomains with a slight displacement
+    #     # run FNO on each of the subdomains, and then combine the results
+    #     # average the results from the two runs as the final output y
         
-        # partition the domain into num_partitions subdomains
-        x_list_1 = self.get_partition_domain(x)
-        x_list_2 = self.get_partition_domain(x, displacement=self.sub_size//2)
+    #     # partition the domain into num_partitions subdomains
+    #     x_list_1 = self.get_partition_domain(x)
+    #     x_list_2 = self.get_partition_domain(x, displacement=self.sub_size//2)
 
-        # run FNO on each of the subdomains
-        y_list_1 = []
-        for x_sub in x_list_1:
-            y_sub = self.fno(x_sub)
-            y_list_1.append(y_sub)
-        y_list_2 = []
-        for x_sub in x_list_2:
-            y_sub = self.fno(x_sub)
-            y_list_2.append(y_sub)
+    #     # run FNO on each of the subdomains
+    #     y_list_1 = []
+    #     for x_sub in x_list_1:
+    #         y_sub = self.fno(x_sub)
+    #         y_list_1.append(y_sub)
+    #     y_list_2 = []
+    #     for x_sub in x_list_2:
+    #         y_sub = self.fno(x_sub)
+    #         y_list_2.append(y_sub)
 
-        y_1 = self.reconstruct_from_partitions(x, y_list_1, displacement=0)
-        y_2 = self.reconstruct_from_partitions(x, y_list_2, displacement=self.sub_size//2)
+    #     y_1 = self.reconstruct_from_partitions(x, y_list_1, displacement=0)
+    #     y_2 = self.reconstruct_from_partitions(x, y_list_2, displacement=self.sub_size//2)
 
-        # average the results from the two runs as the final output y based on displacement
-        y = y_1.clone()
-        y[:, self.sub_size//2:, self.sub_size//2:, :] = (y_1[:, self.sub_size//2:, self.sub_size//2:, :] + y_2) / 2
-        # y[:, :self.sub_size//2, :self.sub_size//2, :] = y_1[:, :self.sub_size//2, :self.sub_size//2, :]
+    #     # average the results from the two runs as the final output y based on displacement
+    #     y = y_1.clone()
+    #     y[:, self.sub_size//2:, self.sub_size//2:, :] = (y_1[:, self.sub_size//2:, self.sub_size//2:, :] + y_2) / 2
+    #     # y[:, :self.sub_size//2, :self.sub_size//2, :] = y_1[:, :self.sub_size//2, :self.sub_size//2, :]
 
-        return y
+    #     return y
+
+    def forward(self, x):
+        return self.fno(x)
 
 
     def get_partition_domain(self, x, displacement=0):
