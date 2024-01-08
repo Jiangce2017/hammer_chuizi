@@ -126,7 +126,21 @@ def run_experiment(config: dict):
     wandb.init(project='Domain_partition_2D', config=config)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    # read parameters from config
+    domain_size = config['domain_size']
+    resolution = config['resolution']
+    num_time_steps = config['num_time_steps']
+    dt = config['dt']
+    num_samples = config['num_samples']
+    seed = config['seed']
+    modes = config['modes']
+    width = config['width']
+    window_size = config['window_size']
+    num_iterations = config['num_iterations']
+    data_frequency = config['data_frequency']
+
     # initialize model
+    dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed)
     model = DomainPartitioning2d(modes, modes, width, window_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_iterations)
@@ -235,7 +249,6 @@ if __name__ == '__main__':
     dt = 0.01
     num_samples = 5000
     seed = 0
-    dataset = ConvectionDiffusionDataset(domain_size, resolution, num_time_steps, dt, num_samples, seed)
     modes = [2, 4, 6, 8]
     width = 20
     data_frequency = [0.1, 0.5, 1, 2, 5, 10]
