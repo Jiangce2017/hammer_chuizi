@@ -12,16 +12,16 @@ import wandb
 
 def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
     xx, yy = np.meshgrid(np.linspace(0, 1, window_size), np.linspace(0, 1, window_size))
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5))
     axs[0].contourf(xx, yy, y.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
     axs[0].set_title('Ground truth')
     axs[1].contourf(xx, yy, y_pred.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
     axs[1].set_title('Prediction')
     axs[2].contourf(xx, yy, np.abs(y.cpu().detach().numpy().reshape(window_size, window_size) - y_pred.cpu().detach().numpy().reshape(window_size, window_size)), levels=100)
     axs[2].set_title('Absolute difference')
-    wandb.log({'Ground truth': wandb.Image(axs[0])})
-    wandb.log({'Prediction': wandb.Image(axs[1])})
-    wandb.log({'Absolute difference': wandb.Image(axs[2])})
+    wandb.log({folder + '/Ground truth': wandb.Image(axs[0])})
+    wandb.log({folder + '/Prediction': wandb.Image(axs[1])})
+    wandb.log({folder + '/Absolute difference': wandb.Image(axs[2])})
     plt.close()
 
 class ConvectionDiffusion:
@@ -55,8 +55,9 @@ class ConvectionDiffusion:
         x = np.linspace(0, self.domain_size, self.resolution)
         y = np.linspace(0, self.domain_size, self.resolution)
         xx, yy = np.meshgrid(x, y)
-        u = np.exp(-2 * self.d * np.pi ** 2 * time_step * self.dt) * np.sin(self.wave_frequency * np.pi / (self.c) * xx) 
+        u = np.exp(-2 * self.d * np.pi ** 2 * time_step * self.dt) * np.sin(self.wave_frequency * np.pi / (self.c) * (xx - self.c * time_step * self.dt * np.cos(self.wave_direction)))
         return np.expand_dims(u, axis=2)
+        # return u
 
     def compute(self):
         solution = []
@@ -67,7 +68,7 @@ class ConvectionDiffusion:
 
 
 class ConvectionDiffusionDataset(torch.utils.data.Dataset):
-    def __init__(self, domain_size, resolution, num_time_steps, dt, num_samples, seed=0):
+    def __init__(self, frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed=0):
         """
         generate a dataset of 2D simulations of the convection-diffusion equation
         :param domain_size: size of the domain (square domain)
@@ -82,6 +83,7 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         self.dt = dt
         self.num_samples = num_samples
         self.seed = seed
+        self.frequency = frequency
 
         self._set_up()
 
@@ -96,10 +98,10 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
             # c = np.random.uniform(0.1, 1)
             c = 0.5
             # d = np.random.uniform(0.1, 1)
-            d = 0.5
+            d = 0.01
             direction = np.random.uniform(0, np.pi)
             # frequency = np.random.randint(1, 5)
-            frequency = 10
+            frequency = self.frequency
             convection_diffusion = ConvectionDiffusion(c, d, direction, frequency, self.domain_size, self.resolution, self.num_time_steps, self.dt)
             solution = convection_diffusion.compute()
             solutions.append(solution)
@@ -120,43 +122,17 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         return self.input[idx], self.label[idx]
 
 
-if __name__ == '__main__':
-    # wandb.init(project='Domain_partition_2D')
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # set up the dataset
-    domain_size = 1
-    resolution = 64
-    num_time_steps = 1000
-    dt = 0.01
-    num_samples = 1000
-    seed = 0
-    dataset = ConvectionDiffusionDataset(domain_size, resolution, num_time_steps, dt, num_samples, seed)
-    modes = 8
-    width = 20
-    window_size = 8
-    num_iterations = 1000
-
-    config = dict(
-        domain_size=domain_size,
-        resolution=resolution,
-        num_time_steps=num_time_steps,
-        dt=dt,
-        num_samples=num_samples,
-        seed=seed,
-        modes=modes,
-        width=width,
-        window_size=window_size,
-        num_iterations=num_iterations
-    )
-
+def run_experiment(config: dict):
     wandb.init(project='Domain_partition_2D', config=config)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # initialize model
     model = DomainPartitioning2d(modes, modes, width, window_size).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_iterations)
 
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [900, 100])
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(0.8 * len(dataset)), len(dataset) - int(0.8 * len(dataset))])
+    val_dataset, test_dataset = torch.utils.data.random_split(val_dataset, [int(0.5 * len(val_dataset)), len(val_dataset) - int(0.5 * len(val_dataset))])
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False)
 
@@ -219,5 +195,68 @@ if __name__ == '__main__':
             wandb.log({'val_l2_loss': val_l2_loss, 'val_r2_accuracy': val_r2_accuracy, 'reconstructed_r2_accuracy': reconstructed_r2_accuracy})
 
             plot_prediction(resolution, y[0], pred_y[0], epoch, 0, 'results')
+            plot_prediction(window_size, sub_y[0], pred[0], epoch, 0, 'results_subdomain')
         
         scheduler.step()
+
+    # test
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=32, shuffle=False)
+    test_l2_loss = 0
+    test_r2_accuracy = 0
+    for x, y in test_loader:
+        sub_x_list = model.get_partition_domain(x)
+        sub_y_list = model.get_partition_domain(y)
+        pred_list = []
+        for sub_x, sub_y in zip(sub_x_list, sub_y_list):
+            sub_x = sub_x.to(device)
+            sub_y = sub_y.to(device)
+            pred = model(sub_x)
+            pred_list.append(pred)
+            loss = F.mse_loss(pred, sub_y)
+            test_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(32, -1), pred.detach().cpu().numpy().reshape(32, -1))
+            test_l2_loss += loss.item()
+
+        pred_y = model.reconstruct_from_partitions(y, pred_list)
+        reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(32, -1), pred_y.detach().cpu().numpy().reshape(32, -1))
+    test_l2_loss /= (len(test_loader) * len(sub_x_list))
+    test_r2_accuracy /= (len(test_loader) * len(sub_x_list))
+    reconstructed_r2_accuracy /= len(test_loader)
+
+    wandb.log({'test_l2_loss': test_l2_loss, 'test_r2_accuracy': test_r2_accuracy, 'reconstructed_r2_accuracy': reconstructed_r2_accuracy})
+
+
+if __name__ == '__main__':
+    # wandb.init(project='Domain_partition_2D')
+    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # set up the dataset
+    domain_size = 1
+    resolution = 64
+    num_time_steps = 1000
+    dt = 0.01
+    num_samples = 5000
+    seed = 0
+    dataset = ConvectionDiffusionDataset(domain_size, resolution, num_time_steps, dt, num_samples, seed)
+    modes = [2, 4, 6, 8]
+    width = 20
+    data_frequency = [0.1, 0.5, 1, 2, 5, 10]
+    window_size = [4, 6, 8, 10, 12, 14, 16, 18, 20]
+    num_iterations = 1000
+
+    for frequency in data_frequency:
+        for size_ in window_size:
+            for mode in modes:
+                config = dict(
+                    domain_size=domain_size,
+                    resolution=resolution,
+                    num_time_steps=num_time_steps,
+                    dt=dt,
+                    num_samples=num_samples,
+                    seed=seed,
+                    modes=mode,
+                    width=width,
+                    window_size=size_,
+                    num_iterations=num_iterations,
+                    data_frequency=frequency
+                )
+
+                run_experiment(config)

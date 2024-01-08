@@ -144,11 +144,110 @@ class FNO2d(nn.Module):
         return torch.cat((gridx, gridy), dim=-1).to(device)
 
 
+class DoubleConv(nn.Module):
+    """
+    Double Convolutional Layer
+    """
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.conv(x)
+    
+
+class Down(nn.Module):
+    """
+    Downsampling Layer
+    """
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.down = nn.Sequential(
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            DoubleConv(in_channels=in_channels, out_channels=out_channels)
+        )
+
+    def forward(self, x):
+        return self.down(x)
+    
+
+class Up(nn.Module):
+    """
+    Upsampling Layer
+    """
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.up = nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=2, stride=2)
+        self.conv = DoubleConv(in_channels=in_channels, out_channels=out_channels)
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        x1 = torch.cat((x1, x2), dim=1)
+        return self.conv(x1)
+
+
+class OutConv(nn.Module):
+    """
+    Output Layer
+    """
+    def __init__(self, in_channels, out_channels):
+        super(OutConv, self).__init__()
+        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class UNet(nn.Module):
+    """
+    UNet for 2D Convolutional PIML
+    input: solution of the coefficient function as a 2D matrix (a(x, y))
+    output: solution of the PDE (u(x, y))
+    """
+    def __init__(self, n_channels):
+        super(UNet, self).__init__()
+        self.n_channels = n_channels
+        self.inc = DoubleConv(n_channels, 16)
+        self.down1 = Down(16, 32)
+        self.down2 = Down(32, 64)
+        # self.down3 = Down(64, 128)
+        # self.down4 = Down(128, 128)
+        # self.up1 = Up(256, 64)
+        # self.up2 = Up(128, 32)
+        self.up3 = Up(96, 16)
+        self.up4 = Up(32, 16)
+        self.outc = OutConv(16, 1)
+
+    def forward(self, x):
+        x1 = self.inc(x)
+        # print(x1.shape)
+        x2 = self.down1(x1)
+        # print(x2.shape)
+        x3 = self.down2(x2)
+        # print(x3.shape)
+        # x4 = self.down3(x3)
+        # x5 = self.down4(x4)
+        # x = self.up1(x5, x4)
+        # x = self.up2(x, x3)
+        x = self.up3(x3, x2)
+        # print(x.shape)
+        x = self.up4(x, x1)
+        # print(x.shape)
+        x = self.outc(x)
+        return x
+        
+
 class DomainPartitioning2d(nn.Module):
     def __init__(self, modes1, modes2, width, subdomain_length):
         super(DomainPartitioning2d, self).__init__()
         self.sub_size = subdomain_length
         self.fno = FNO2d(modes1, modes2, width)
+        # self.fno = UNet(1)
 
     # def forward(self, x):
     #     # for input data matrix x, partition the domain into num_partitions subdomains
