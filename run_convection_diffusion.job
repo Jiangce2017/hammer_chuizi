@@ -2,7 +2,7 @@
 #SBATCH -N 1
 #SBATCH -p biosimmlab
 #SBATCH --gpus=a40
-#SBATCH -n 24
+#SBATCH -n 48
 #SBATCH -t 40:00:00
 
 # type 'man sbatch' for more information and options
@@ -27,4 +27,4 @@ source /trace/home/wxu2/.bashrc
 conda activate pyg
 
 # run the executable
-python3 /trace/group/biosimmlab/wxu2/hammer_chuizi/general_FNO/2D_random_general_FNO_train.py
+python3 /trace/group/biosimmlab/wxu2/hammer_chuizi/general_FNO/convection_diffusion.py

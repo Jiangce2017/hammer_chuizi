@@ -98,7 +98,7 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
             # c = np.random.uniform(0.1, 1)
             c = 0.5
             # d = np.random.uniform(0.1, 1)
-            d = 0.01
+            d = 0.001
             direction = np.random.uniform(0, np.pi)
             # frequency = np.random.randint(1, 5)
             frequency = self.frequency
@@ -147,7 +147,7 @@ def run_experiment(config: dict):
 
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(0.8 * len(dataset)), len(dataset) - int(0.8 * len(dataset))])
     val_dataset, test_dataset = torch.utils.data.random_split(val_dataset, [int(0.5 * len(val_dataset)), len(val_dataset) - int(0.5 * len(val_dataset))])
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False)
 
     # training loop
@@ -169,13 +169,13 @@ def run_experiment(config: dict):
                 pred = model(sub_x)
                 pred_list.append(pred)
                 loss = F.mse_loss(pred, sub_y)
-                train_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(32, -1), pred.detach().cpu().numpy().reshape(32, -1))
+                train_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(128, -1), pred.detach().cpu().numpy().reshape(128, -1))
                 loss.backward()
                 optimizer.step()
                 train_mse_loss += loss.item()
             
             pred_y = model.reconstruct_from_partitions(y, pred_list)
-            reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(32, -1), pred_y.detach().cpu().numpy().reshape(32, -1))
+            reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(128, -1), pred_y.detach().cpu().numpy().reshape(128, -1))
 
         train_mse_loss /= (len(train_loader) * len(sub_x_list))
         train_r2_accuracy /= (len(train_loader) * len(sub_x_list))
@@ -183,7 +183,7 @@ def run_experiment(config: dict):
 
         wandb.log({'train_mse_loss': train_mse_loss, 'train_r2_accuracy': train_r2_accuracy, 'reconstructed_r2_accuracy': reconstructed_r2_accuracy})
 
-        if epoch % 10 == 0:
+        if epoch % 40 == 0:
             model.eval()
             val_l2_loss = 0
             val_r2_accuracy = 0
@@ -191,17 +191,20 @@ def run_experiment(config: dict):
                 sub_x_list = model.get_partition_domain(x)
                 sub_y_list = model.get_partition_domain(y)
                 pred_list = []
+                # print(x.shape)
+                # print(y.shape)
                 for sub_x, sub_y in zip(sub_x_list, sub_y_list):
                     sub_x = sub_x.to(device)
                     sub_y = sub_y.to(device)
                     pred = model(sub_x)
                     pred_list.append(pred)
                     loss = F.mse_loss(pred, sub_y)
-                    val_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(32, -1), pred.detach().cpu().numpy().reshape(32, -1))
+                    val_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred.detach().cpu().numpy().reshape(pred.shape[0], -1))
+                    # val_r2_accuracy += r2_score(sub_y.detach().cpu().numpy(), pred.detach().cpu().numpy())
                     val_l2_loss += loss.item()
 
                 pred_y = model.reconstruct_from_partitions(y, pred_list)
-                reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(32, -1), pred_y.detach().cpu().numpy().reshape(32, -1))
+                reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred_y.detach().cpu().numpy().reshape(pred_y.shape[0], -1))
             val_l2_loss /= (len(val_loader) * len(sub_x_list))
             val_r2_accuracy /= (len(val_loader) * len(sub_x_list))
             reconstructed_r2_accuracy /= len(val_loader)
@@ -227,16 +230,17 @@ def run_experiment(config: dict):
             pred = model(sub_x)
             pred_list.append(pred)
             loss = F.mse_loss(pred, sub_y)
-            test_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(32, -1), pred.detach().cpu().numpy().reshape(32, -1))
+            test_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred.detach().cpu().numpy().reshape(pred.shape[0], -1))
             test_l2_loss += loss.item()
 
         pred_y = model.reconstruct_from_partitions(y, pred_list)
-        reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(32, -1), pred_y.detach().cpu().numpy().reshape(32, -1))
+        reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred_y.detach().cpu().numpy().reshape(pred_y.shape[0], -1))
     test_l2_loss /= (len(test_loader) * len(sub_x_list))
     test_r2_accuracy /= (len(test_loader) * len(sub_x_list))
     reconstructed_r2_accuracy /= len(test_loader)
 
     wandb.log({'test_l2_loss': test_l2_loss, 'test_r2_accuracy': test_r2_accuracy, 'reconstructed_r2_accuracy': reconstructed_r2_accuracy})
+    wandb.finish()
 
 
 if __name__ == '__main__':
@@ -245,31 +249,33 @@ if __name__ == '__main__':
     # set up the dataset
     domain_size = 1
     resolution = 64
-    num_time_steps = 1000
-    dt = 0.01
-    num_samples = 5000
+    num_time_steps = 500
+    dt = 0.1
+    num_samples = 3000
     seed = 0
-    modes = [2, 4, 6, 8]
+    # modes = [2, 4, 6, 8]
+    mode = 8
+
     width = 20
     data_frequency = [0.1, 0.5, 1, 2, 5, 10]
-    window_size = [4, 6, 8, 10, 12, 14, 16, 18, 20]
-    num_iterations = 1000
+    window_size = [6, 8, 10, 12, 14, 16, 18, 20]
+    num_iterations = 500
 
     for frequency in data_frequency:
         for size_ in window_size:
-            for mode in modes:
-                config = dict(
-                    domain_size=domain_size,
-                    resolution=resolution,
-                    num_time_steps=num_time_steps,
-                    dt=dt,
-                    num_samples=num_samples,
-                    seed=seed,
-                    modes=mode,
-                    width=width,
-                    window_size=size_,
-                    num_iterations=num_iterations,
-                    data_frequency=frequency
-                )
+            # for mode in modes:
+            config = dict(
+                domain_size=domain_size,
+                resolution=resolution,
+                num_time_steps=num_time_steps,
+                dt=dt,
+                num_samples=num_samples,
+                seed=seed,
+                modes=mode,
+                width=width,
+                window_size=size_,
+                num_iterations=num_iterations,
+                data_frequency=frequency
+            )
 
-                run_experiment(config)
+            run_experiment(config)
