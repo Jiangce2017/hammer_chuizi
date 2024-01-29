@@ -147,7 +147,7 @@ def run_experiment(config: dict):
 
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(0.8 * len(dataset)), len(dataset) - int(0.8 * len(dataset))])
     val_dataset, test_dataset = torch.utils.data.random_split(val_dataset, [int(0.5 * len(val_dataset)), len(val_dataset) - int(0.5 * len(val_dataset))])
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False)
 
     # training loop
@@ -169,14 +169,14 @@ def run_experiment(config: dict):
                 pred = model(sub_x)
                 pred_list.append(pred)
                 loss = F.mse_loss(pred, sub_y)
-                train_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(128, -1), pred.detach().cpu().numpy().reshape(128, -1))
+                train_r2_accuracy += r2_score(sub_y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred.detach().cpu().numpy().reshape(sub_y.shape[0], -1))
                 loss.backward()
                 optimizer.step()
                 train_mse_loss += loss.item()
             
             pred_y = model.reconstruct_from_partitions(y, pred_list)
             print(pred_y.shape)
-            reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(128, -1), pred_y.detach().cpu().numpy().reshape(128, -1))
+            reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred_y.detach().cpu().numpy().reshape(sub_y.shape[0], -1))
 
         train_mse_loss /= (len(train_loader) * len(sub_x_list))
         train_r2_accuracy /= (len(train_loader) * len(sub_x_list))
@@ -249,10 +249,10 @@ if __name__ == '__main__':
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # set up the dataset
     domain_size = 1
-    resolution = 48
+    resolution = 64
     num_time_steps = 500
     dt = 0.1
-    num_samples = 2000
+    num_samples = 100
     seed = 0
     # modes = [2, 4, 6, 8]
     mode = 8

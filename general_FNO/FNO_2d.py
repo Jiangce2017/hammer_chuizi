@@ -325,7 +325,11 @@ class DomainPartitioning2d(nn.Module):
         num_partitions_dim = int(np.sqrt(len(x_list)))
         # print(num_partitions_dim)
         x, pad_size = self.symmetric_padding(x, mode='test')
-        x = torch.zeros_like(x[:, 1:-1, 1:-1:, 0].unsqueeze(-1))
+        # print(x.shape)
+        # print(pad_size)
+        x = torch.zeros_like(x[:, 1:-1, 1:-1, 0].unsqueeze(-1))
+        # print(x.shape)
+        # print(x_list[0].shape)
         # if the domain can be fully partitioned into subdomains of the same size
         if len(x_list) == num_partitions_dim**2:
             for i in range(num_partitions_dim):
@@ -340,6 +344,10 @@ class DomainPartitioning2d(nn.Module):
             x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :] = x_list[-1]
 
         # remove the padding
-        x = x[:, pad_size-1:-pad_size+1, pad_size-1:-pad_size+1, :]
-
-        return x
+        # print(pad_size)
+        # print(x.shape)
+        if pad_size == 1:
+            return x
+        else:
+            x = x[:, pad_size-1:-pad_size+1, pad_size-1:-pad_size+1, :]
+            return x
