@@ -159,8 +159,8 @@ def run_experiment(config: dict):
         for x, y in train_loader:
             # print(x.shape)
             # print(y.shape)
-            sub_x_list = model.get_partition_domain(x)
-            sub_y_list = model.get_partition_domain(y)
+            sub_x_list = model.get_partition_domain(x, mode='train')
+            sub_y_list = model.get_partition_domain(y, mode='test')
             pred_list = []
             for sub_x, sub_y in zip(sub_x_list, sub_y_list):
                 sub_x = sub_x.to(device)
@@ -175,6 +175,7 @@ def run_experiment(config: dict):
                 train_mse_loss += loss.item()
             
             pred_y = model.reconstruct_from_partitions(y, pred_list)
+            print(pred_y.shape)
             reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(128, -1), pred_y.detach().cpu().numpy().reshape(128, -1))
 
         train_mse_loss /= (len(train_loader) * len(sub_x_list))
@@ -188,8 +189,8 @@ def run_experiment(config: dict):
             val_l2_loss = 0
             val_r2_accuracy = 0
             for x, y in val_loader:
-                sub_x_list = model.get_partition_domain(x)
-                sub_y_list = model.get_partition_domain(y)
+                sub_x_list = model.get_partition_domain(x, mode='train')
+                sub_y_list = model.get_partition_domain(y, mode='test')
                 pred_list = []
                 # print(x.shape)
                 # print(y.shape)
@@ -248,10 +249,10 @@ if __name__ == '__main__':
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # set up the dataset
     domain_size = 1
-    resolution = 64
+    resolution = 48
     num_time_steps = 500
     dt = 0.1
-    num_samples = 3000
+    num_samples = 2000
     seed = 0
     # modes = [2, 4, 6, 8]
     mode = 8

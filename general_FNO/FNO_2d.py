@@ -85,7 +85,7 @@ class FNO2d(nn.Module):
         self.width = width
         self.padding = 9 # pad the domain if input is non-periodic
 
-        self.p = nn.Linear(3, self.width) # input channel is 3: (a(x, y), x, y)
+        self.p = nn.Linear(4, self.width) # input channel is 3: (a(x, y), x, y)
         self.conv0 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv1 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv2 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
@@ -282,42 +282,64 @@ class DomainPartitioning2d(nn.Module):
 
     def forward(self, x):
         return self.fno(x)
+    
+    def symmetric_padding(self, x, mode):
+        # pad the domain symmetrically to make it divisible by sub_size
+        # get pad size
+        pad_size = (x.shape[1] % self.sub_size) // 2 + 1
+        x = F.pad(x, (0, 0, pad_size, pad_size, pad_size, pad_size, 0, 0))
+        if mode == 'train':
+            # add one dimension to the tensor x, with 0 in the padded region and 1 in the original region
+            x_pad_idx = torch.ones((x.shape[0], x.shape[1], x.shape[2], 1))
+            x_pad_idx[:, :pad_size, :pad_size, :] = 0
+            x_pad_idx[:, -pad_size:, -pad_size:, :] = 0
+            x = torch.cat((x, x_pad_idx), dim=-1)
+            return x, pad_size
+        elif mode == 'test':    
+            return x, pad_size
 
-
-    def get_partition_domain(self, x, displacement=0):
+    def get_partition_domain(self, x, mode, displacement=0):
+        # pad the domain symmetrically to make it divisible by sub_size
+        x, pad_size = self.symmetric_padding(x, mode)
         # partition the domain into num_partitions subdomains of the same size
         x_list = []
-        num_partitions_dim = (x.shape[1] - displacement) // self.sub_size
+        num_partitions_dim = x.shape[1] - self.sub_size + 1
         # if the domain can be fully partitioned into subdomains of the same size
         if (x.shape[1] - displacement) % self.sub_size == 0:
             for i in range(num_partitions_dim):
                 for j in range(num_partitions_dim):
-                    x_list.append(x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :])
+                    x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
         # if the domain cannot be fully partitioned into subdomains of the same size
         else:
             for i in range(num_partitions_dim):
                 for j in range(num_partitions_dim):
-                    x_list.append(x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :])
+                    x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
             # add the last subdomain
             x_list.append(x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :])
 
         return x_list
+    
 
     def reconstruct_from_partitions(self, x, x_list, displacement=0):
         # reconstruct the domain from the partitioned subdomains
         num_partitions_dim = int(np.sqrt(len(x_list)))
-        x = torch.zeros_like(x[:, displacement:, displacement:, 0].unsqueeze(-1))
+        # print(num_partitions_dim)
+        x, pad_size = self.symmetric_padding(x, mode='test')
+        x = torch.zeros_like(x[:, 1:-1, 1:-1:, 0].unsqueeze(-1))
         # if the domain can be fully partitioned into subdomains of the same size
         if len(x_list) == num_partitions_dim**2:
             for i in range(num_partitions_dim):
                 for j in range(num_partitions_dim):
-                    x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :] = x_list[i*num_partitions_dim + j]
+                    x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
         # if the domain cannot be fully partitioned into subdomains of the same size
         else:
             for i in range(num_partitions_dim):
                 for j in range(num_partitions_dim):
-                    x[:, i*self.sub_size:(i+1)*self.sub_size, j*self.sub_size:(j+1)*self.sub_size, :] = x_list[i*num_partitions_dim + j]
+                    x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
             # add the last subdomain
             x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :] = x_list[-1]
+
+        # remove the padding
+        x = x[:, pad_size-1:-pad_size+1, pad_size-1:-pad_size+1, :]
 
         return x
