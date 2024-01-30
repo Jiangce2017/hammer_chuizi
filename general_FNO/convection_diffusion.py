@@ -175,7 +175,7 @@ def run_experiment(config: dict):
                 train_mse_loss += loss.item()
             
             pred_y = model.reconstruct_from_partitions(y, pred_list)
-            print(pred_y.shape)
+            # print(pred_y.shape)
             reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred_y.detach().cpu().numpy().reshape(sub_y.shape[0], -1))
 
         train_mse_loss /= (len(train_loader) * len(sub_x_list))
@@ -217,13 +217,17 @@ def run_experiment(config: dict):
         
         scheduler.step()
 
+        # save and log model
+        torch.save(model.state_dict(), 'model.pt')
+        wandb.log_model(path='model.pt', name='model_window_size_{}'.format(window_size))
+
     # test
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=32, shuffle=False)
     test_l2_loss = 0
     test_r2_accuracy = 0
     for x, y in test_loader:
-        sub_x_list = model.get_partition_domain(x)
-        sub_y_list = model.get_partition_domain(y)
+        sub_x_list = model.get_partition_domain(x, mode='train')
+        sub_y_list = model.get_partition_domain(y, mode='test')
         pred_list = []
         for sub_x, sub_y in zip(sub_x_list, sub_y_list):
             sub_x = sub_x.to(device)
@@ -258,7 +262,7 @@ if __name__ == '__main__':
     mode = 8
 
     width = 20
-    data_frequency = [0.1, 0.5, 1, 2, 5, 10]
+    data_frequency = [5, 10]
     window_size = [6, 8, 10, 12, 14, 16, 18, 20]
     num_iterations = 500
 
