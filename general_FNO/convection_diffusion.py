@@ -203,8 +203,8 @@ def run_experiment(config: dict):
         reconstructed_r2_accuracy /= len(train_loader)
 
         wandb.log({'train_mse_loss': train_mse_loss, 'train_r2_accuracy': train_r2_accuracy, 'train_reconstructed_r2_accuracy': reconstructed_r2_accuracy})
-
-        if epoch % 10 == 0:
+        print('Epoch: {}, train_mse_loss: {}, train_r2_accuracy: {}, train_reconstructed_r2_accuracy: {}'.format(epoch, train_mse_loss, train_r2_accuracy, reconstructed_r2_accuracy))
+        if epoch % 10 == 0 and epoch != 0:
             model.eval()
             with torch.no_grad():
                 val_l2_loss = 0
@@ -234,8 +234,12 @@ def run_experiment(config: dict):
 
                 wandb.log({'val_l2_loss': val_l2_loss, 'val_r2_accuracy': val_r2_accuracy, 'val_reconstructed_r2_accuracy': reconstructed_r2_accuracy})
 
-                plot_prediction(resolution, y[0], pred_y[0], epoch, 0, 'results')
-                plot_prediction(window_size, sub_y[0], pred[0].detach().cpu().numpy(), epoch, 0, 'results_subdomain')
+                plot_prediction(resolution, y[0], pred_y[0], epoch, 0, 'results_1')
+                plot_prediction(resolution, y[3], pred_y[3], epoch, 1, 'results_2')
+                plot_prediction(resolution, y[5], pred_y[5], epoch, 2, 'results_3')
+                plot_prediction(resolution, y[7], pred_y[7], epoch, 3, 'results_4')
+                plot_prediction(resolution, y[9], pred_y[9], epoch, 4, 'results_5')
+                plot_prediction(window_size, sub_y[40], pred[40].detach().cpu().numpy(), epoch, 0, 'results_subdomain')
         
         scheduler.step()
 
@@ -279,15 +283,15 @@ if __name__ == '__main__':
     resolution = 64
     num_time_steps = 50
     dt = 0.1
-    num_samples = 800
+    num_samples = 80
     seed = 0
     # modes = [2, 4, 6, 8]
     mode = 8
 
     width = 20
-    data_frequency = [1, 2, 3, 4, 5]
-    window_size = [6, 8, 12, 16, 20]
-    num_iterations = 50
+    data_frequency = [5]
+    window_size = [8]
+    num_iterations = 11
 
     train_ds = 0.001
     val_ds = 0.001

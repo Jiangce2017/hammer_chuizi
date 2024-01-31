@@ -222,7 +222,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 wandb.init(project="Domain_partition_2D", group="2d_burgers")
 
 # dataset = BurgersDataset(root=data_dir)
-dataset = BurgersDatasetWhole(root=data_dir)[:1000]
+dataset = BurgersDatasetWhole(root=data_dir)[:800]
 # pick 0.5 of the dataset as data
 # dataset = dataset[:int(len(dataset) * 0.5)]
 train_dataset, test_dataset = train_test_split(dataset)
@@ -251,7 +251,7 @@ for ep in range(cur_ep, epochs):
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
     print('train_mse: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_r2))
-    print('test_mse: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_r2))
+    
     # train_logger.log({
     #     'epoch': ep,
     #     'train_mse': train_mse,
@@ -268,6 +268,7 @@ for ep in range(cur_ep, epochs):
     if ep % 10 == 0:
         torch.save(model.state_dict(), osp.join(results_dir, 'model_ep{}.pth'.format(ep)))
         test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
+        print('test_mse: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_r2))
         wandb.log({
             'test_mse': test_mse,
             'test_r2': test_r2,
