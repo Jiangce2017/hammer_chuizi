@@ -288,11 +288,14 @@ class DomainPartitioning2d(nn.Module):
         # get pad size
         pad_size = (x.shape[1] % self.sub_size) // 2 + 1
         x = F.pad(x, (0, 0, pad_size, pad_size, pad_size, pad_size, 0, 0))
+        # print(x[0, :, :, 0])
         if mode == 'train':
             # add one dimension to the tensor x, with 0 in the padded region and 1 in the original region
             x_pad_idx = torch.ones((x.shape[0], x.shape[1], x.shape[2], 1))
-            x_pad_idx[:, :pad_size, :pad_size, :] = 0
-            x_pad_idx[:, -pad_size:, -pad_size:, :] = 0
+            x_pad_idx[:, :pad_size, :, :] = 0
+            x_pad_idx[:, -pad_size:, :, :] = 0
+            x_pad_idx[:, :, -pad_size:, :] = 0
+            x_pad_idx[:, :, :pad_size, :] = 0
             x = torch.cat((x, x_pad_idx), dim=-1)
             return x, pad_size
         elif mode == 'test':    
@@ -305,17 +308,17 @@ class DomainPartitioning2d(nn.Module):
         x_list = []
         num_partitions_dim = x.shape[1] - self.sub_size + 1
         # if the domain can be fully partitioned into subdomains of the same size
-        if (x.shape[1] - displacement) % self.sub_size == 0:
-            for i in range(num_partitions_dim):
-                for j in range(num_partitions_dim):
-                    x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
+        # if (x.shape[1] - displacement) % self.sub_size == 0:
+        for i in range(num_partitions_dim):
+            for j in range(num_partitions_dim):
+                x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
         # if the domain cannot be fully partitioned into subdomains of the same size
-        else:
-            for i in range(num_partitions_dim):
-                for j in range(num_partitions_dim):
-                    x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
-            # add the last subdomain
-            x_list.append(x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :])
+        # else:
+        #     for i in range(num_partitions_dim):
+        #         for j in range(num_partitions_dim):
+        #             x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
+        #     # add the last subdomain
+        #     x_list.append(x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :])
 
         return x_list
     
@@ -331,17 +334,17 @@ class DomainPartitioning2d(nn.Module):
         # print(x.shape)
         # print(x_list[0].shape)
         # if the domain can be fully partitioned into subdomains of the same size
-        if len(x_list) == num_partitions_dim**2:
-            for i in range(num_partitions_dim):
-                for j in range(num_partitions_dim):
-                    x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
+        # if len(x_list) == num_partitions_dim**2:
+        for i in range(num_partitions_dim):
+            for j in range(num_partitions_dim):
+                x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
         # if the domain cannot be fully partitioned into subdomains of the same size
-        else:
-            for i in range(num_partitions_dim):
-                for j in range(num_partitions_dim):
-                    x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
-            # add the last subdomain
-            x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :] = x_list[-1]
+        # else:
+        #     for i in range(num_partitions_dim):
+        #         for j in range(num_partitions_dim):
+        #             x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
+        #     # # add the last subdomain
+        #     x[:, (x.shape[1] - self.sub_size + 2):x.shape[1], (x.shape[2] - self.sub_size + 2):(x.shape[2]), :] = x_list[-1][:, 1:-1, 1:-1, :]
 
         # remove the padding
         # print(pad_size)

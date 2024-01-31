@@ -13,6 +13,7 @@ from sklearn.metrics import r2_score
 from utilities3 import *
 from timeit import default_timer
 import csv
+import wandb
 torch.manual_seed(0)
 np.random.seed(0)
 
@@ -55,15 +56,19 @@ class Logger(object):
 
 def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
     xx, yy = np.meshgrid(np.linspace(0, 1, window_size), np.linspace(0, 1, window_size))
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-    axs[0].contourf(xx, yy, y.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5))
+    axs[0].contourf(xx, yy, y.cpu().detach().numpy().reshape(window_size, window_size), levels=100, cmap='plasma')
     axs[0].set_title('Ground truth')
-    axs[1].contourf(xx, yy, y_pred.cpu().detach().numpy().reshape(window_size, window_size), levels=100)
+    axs[0].axis('off')
+    axs[1].contourf(xx, yy, y_pred.cpu().detach().numpy().reshape(window_size, window_size), levels=100, cmap='plasma')
     axs[1].set_title('Prediction')
-    axs[2].contourf(xx, yy, np.abs(y.cpu().detach().numpy().reshape(window_size, window_size) - y_pred.cpu().detach().numpy().reshape(window_size, window_size)), levels=100)
+    axs[1].axis('off')
+    axs[2].contourf(xx, yy, np.abs(y.cpu().detach().numpy().reshape(window_size, window_size) - y_pred.cpu().detach().numpy().reshape(window_size, window_size)), levels=100, cmap='plasma')
     axs[2].set_title('Absolute difference')
-    plt.savefig(osp.join(folder, 'ep{}_sub_batch{}.png'.format(epoch, batch_idx)))
-    plt.close()
+    axs[2].axis('off')
+    # plt.savefig(osp.join(folder, 'ep{}_sub_batch{}.png'.format(epoch, batch_idx)))
+    # plt.close()
+    wandb.log({"prediction": wandb.Image(axs[1])})
 
 
 def train_sub_domain(train_loader):
@@ -76,8 +81,8 @@ def train_sub_domain(train_loader):
     for data in train_loader:
 
         x, y = data[0], data[1]
-        sub_x_list = model.get_partition_domain(x)
-        sub_y_list = model.get_partition_domain(y)
+        sub_x_list = model.get_partition_domain(x, mode='train')
+        sub_y_list = model.get_partition_domain(y, mode='test')
         pred_list = []
         for i in range(len(sub_x_list)):
             sub_x = sub_x_list[i].to(device)
@@ -178,8 +183,8 @@ def test_sub_domain(test_loader):
     with torch.no_grad():
         for data in test_loader:
             x, y = data[0], data[1]
-            sub_x_list = model.get_partition_domain(x)
-            sub_y_list = model.get_partition_domain(y)
+            sub_x_list = model.get_partition_domain(x, mode='train')
+            sub_y_list = model.get_partition_domain(y, mode='test')
             pred_list = []
             for i in range(len(sub_x_list)):
                 sub_x = sub_x_list[i].to(device)
@@ -208,14 +213,18 @@ width = 20 # dimension of latent space
 batch_size = 16
 learning_rate = 0.001
 epochs = 200
-window_size = 8
+window_size = 12
 
 results_dir = 'general_FNO/results'
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+wandb.init(project="Domain_partition_2D", group="2d_burgers")
+
 # dataset = BurgersDataset(root=data_dir)
-dataset = BurgersDatasetWhole(root=data_dir)
+dataset = BurgersDatasetWhole(root=data_dir)[:1000]
+# pick 0.5 of the dataset as data
+# dataset = dataset[:int(len(dataset) * 0.5)]
 train_dataset, test_dataset = train_test_split(dataset)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -230,34 +239,44 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteratio
 cur_ep = 0
 
 myloss = LpLoss(size_average=False)
-train_logger = Logger(osp.join(results_dir, 'train_sub_batch.log'), ['epoch', 'train_mse', 'train_r2', \
-                                                            'test_mse', 'test_r2', 'reconstructed_r2'])
+# train_logger = Logger(osp.join(results_dir, 'train_sub_batch.log'), ['epoch', 'train_mse', 'train_r2', \
+#                                                             'test_mse', 'test_r2', 'reconstructed_r2'])
 
 for ep in range(cur_ep, epochs):
     start_time = default_timer()
     train_mse, train_l2, train_r2 = train_sub_domain(train_loader)
     # test_mse, test_l2, test_r2 = test(test_loader)
-    test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
+    # test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
     end_time = default_timer()
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
     print('train_mse: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_r2))
     print('test_mse: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_r2))
-    train_logger.log({
-        'epoch': ep,
+    # train_logger.log({
+    #     'epoch': ep,
+    #     'train_mse': train_mse,
+    #     'train_r2': train_r2,
+    #     'test_mse': test_mse,
+    #     'test_r2': test_r2,
+    #     'reconstructed_r2': reconstructed_r2
+    # })
+    wandb.log({
         'train_mse': train_mse,
         'train_r2': train_r2,
-        'test_mse': test_mse,
-        'test_r2': test_r2,
-        'reconstructed_r2': reconstructed_r2
     })
 
     if ep % 10 == 0:
         torch.save(model.state_dict(), osp.join(results_dir, 'model_ep{}.pth'.format(ep)))
+        test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
+        wandb.log({
+            'test_mse': test_mse,
+            'test_r2': test_r2,
+            'reconstructed_r2': reconstructed_r2
+        })
         # plot prediction
         x, y = next(iter(test_loader))
-        sub_x_list = model.get_partition_domain(x)
-        sub_y_list = model.get_partition_domain(y)
+        sub_x_list = model.get_partition_domain(x, mode='train')
+        sub_y_list = model.get_partition_domain(y, mode='test')
         pred_list = []
         for i in range(len(sub_x_list)):
             sub_x = sub_x_list[i].to(device)
@@ -269,3 +288,4 @@ for ep in range(cur_ep, epochs):
         # y = y.to(device)
         # pred = model(x)
         plot_prediction(y[0].shape[0], y[0], pred_y[0], ep, 0, results_dir)
+        plot_prediction(window_size, sub_y[0], pred[0], ep, 1, results_dir)
