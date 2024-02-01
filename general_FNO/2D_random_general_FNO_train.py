@@ -68,7 +68,7 @@ def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
     axs[2].axis('off')
     # plt.savefig(osp.join(folder, 'ep{}_sub_batch{}.png'.format(epoch, batch_idx)))
     # plt.close()
-    wandb.log({"prediction": wandb.Image(axs[1])})
+    wandb.log({"prediction_idx_{}".format(batch_idx): wandb.Image(axs[1])})
 
 
 def train_sub_domain(train_loader):
@@ -222,9 +222,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 wandb.init(project="Domain_partition_2D", group="2d_burgers")
 
 # dataset = BurgersDataset(root=data_dir)
-dataset = BurgersDatasetWhole(root=data_dir)[:800]
+dataset = BurgersDatasetWhole(root=data_dir)
 # pick 0.5 of the dataset as data
-# dataset = dataset[:int(len(dataset) * 0.5)]
+dataset = dataset[:int(len(dataset) * 0.5)]
 train_dataset, test_dataset = train_test_split(dataset)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -289,4 +289,9 @@ for ep in range(cur_ep, epochs):
         # y = y.to(device)
         # pred = model(x)
         plot_prediction(y[0].shape[0], y[0], pred_y[0], ep, 0, results_dir)
-        plot_prediction(window_size, sub_y[0], pred[0], ep, 1, results_dir)
+        plot_prediction(y[0].shape[0], y[2], pred_y[2], ep, 1, results_dir)
+        plot_prediction(y[0].shape[0], y[4], pred_y[4], ep, 2, results_dir)
+        plot_prediction(y[0].shape[0], y[6], pred_y[6], ep, 3, results_dir)
+        plot_prediction(y[0].shape[0], y[8], pred_y[8], ep, 4, results_dir)
+
+        plot_prediction(window_size, sub_y[0], pred[0], ep, 5, results_dir)
