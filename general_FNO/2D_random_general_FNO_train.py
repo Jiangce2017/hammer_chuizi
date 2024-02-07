@@ -32,27 +32,6 @@ def train_test_split(dataset, train_ratio=0.8):
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
     return train_dataset, test_dataset
-    
-class Logger(object):
-
-    def __init__(self, path, header):
-        self.log_file = open(path, 'w')
-        self.logger = csv.writer(self.log_file, delimiter='\t')
-
-        self.logger.writerow(header)
-        self.header = header
-
-    def __del(self):
-        self.log_file.close()
-
-    def log(self, values):
-        write_values = []
-        for col in self.header:
-            assert col in values
-            write_values.append(values[col])
-
-        self.logger.writerow(write_values)
-        self.log_file.flush()
 
 def plot_prediction(window_size, y, y_pred, epoch, batch_idx, folder):
     xx, yy = np.meshgrid(np.linspace(0, 1, window_size), np.linspace(0, 1, window_size))
@@ -221,10 +200,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 wandb.init(project="Domain_partition_2D", group="2d_burgers")
 
-# dataset = BurgersDataset(root=data_dir)
 dataset = BurgersDatasetWhole(root=data_dir)
-# pick 0.5 of the dataset as data
-dataset = dataset[:int(len(dataset) * 0.5)]
+
 train_dataset, test_dataset = train_test_split(dataset)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -239,27 +216,17 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteratio
 cur_ep = 0
 
 myloss = LpLoss(size_average=False)
-# train_logger = Logger(osp.join(results_dir, 'train_sub_batch.log'), ['epoch', 'train_mse', 'train_r2', \
-#                                                             'test_mse', 'test_r2', 'reconstructed_r2'])
 
 for ep in range(cur_ep, epochs):
     start_time = default_timer()
     train_mse, train_l2, train_r2 = train_sub_domain(train_loader)
-    # test_mse, test_l2, test_r2 = test(test_loader)
-    # test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
+    test_mse, test_l2, test_r2 = test(test_loader)
+    test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
     end_time = default_timer()
     epoch_time = end_time - start_time
     print('Epoch {}, time {:.4f}'.format(ep, epoch_time))
     print('train_mse: {:.4f}, train_r2: {:.4f}'.format(train_mse, train_r2))
     
-    # train_logger.log({
-    #     'epoch': ep,
-    #     'train_mse': train_mse,
-    #     'train_r2': train_r2,
-    #     'test_mse': test_mse,
-    #     'test_r2': test_r2,
-    #     'reconstructed_r2': reconstructed_r2
-    # })
     wandb.log({
         'train_mse': train_mse,
         'train_r2': train_r2,
@@ -267,6 +234,7 @@ for ep in range(cur_ep, epochs):
 
     if ep % 10 == 0:
         torch.save(model.state_dict(), osp.join(results_dir, 'model_ep{}.pth'.format(ep)))
+        wandb.log_model(path=osp.join(results_dir, 'model_ep{}.pth'.format(ep)), name='model_ep{}'.format(ep))
         test_mse, test_l2, test_r2, reconstructed_r2 = test_sub_domain(test_loader)
         print('test_mse: {:.4f}, test_r2: {:.4f}'.format(test_mse, test_r2))
         wandb.log({
@@ -283,15 +251,11 @@ for ep in range(cur_ep, epochs):
             sub_x = sub_x_list[i].to(device)
             sub_y = sub_y_list[i].to(device)
             pred = model(sub_x)
-            pred_list.append(pred)
+            pred_list.append(pred.cpu().detach())
         pred_y = model.reconstruct_from_partitions(y, pred_list)
         # x = x.to(device)
         # y = y.to(device)
         # pred = model(x)
         plot_prediction(y[0].shape[0], y[0], pred_y[0], ep, 0, results_dir)
-        plot_prediction(y[0].shape[0], y[2], pred_y[2], ep, 1, results_dir)
-        plot_prediction(y[0].shape[0], y[4], pred_y[4], ep, 2, results_dir)
-        plot_prediction(y[0].shape[0], y[6], pred_y[6], ep, 3, results_dir)
-        plot_prediction(y[0].shape[0], y[8], pred_y[8], ep, 4, results_dir)
 
-        plot_prediction(window_size, sub_y[0], pred[0], ep, 5, results_dir)
+        plot_prediction(window_size, sub_y[4], pred[4], ep, 5, results_dir)
