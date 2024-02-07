@@ -176,8 +176,6 @@ def run_experiment(config: dict):
         train_r2_accuracy = 0
         reconstructed_r2_accuracy = 0
         for x, y in train_loader:
-            # print(x.shape)
-            # print(y.shape)
             sub_x_list = model.get_partition_domain(x, mode='train')
             sub_y_list = model.get_partition_domain(y, mode='test')
             pred_list = []
@@ -185,7 +183,6 @@ def run_experiment(config: dict):
                 sub_x = sub_x.to(device)
                 sub_y = sub_y.to(device)
                 optimizer.zero_grad()
-                # print(sub_x.shape)
                 pred = model(sub_x)
                 pred_list.append(pred.detach().cpu())
                 loss = F.mse_loss(pred, sub_y)
@@ -195,7 +192,6 @@ def run_experiment(config: dict):
                 train_mse_loss += loss.item()
             
             pred_y = model.reconstruct_from_partitions(y, pred_list).detach().cpu().numpy()
-            # print(pred_y.shape)
             reconstructed_r2_accuracy += r2_score(y.detach().cpu().numpy().reshape(sub_y.shape[0], -1), pred_y.reshape(sub_y.shape[0], -1))
 
         train_mse_loss /= (len(train_loader) * len(sub_x_list))
@@ -214,8 +210,7 @@ def run_experiment(config: dict):
                     sub_x_list = model.get_partition_domain(x, mode='train')
                     sub_y_list = model.get_partition_domain(y, mode='test')
                     pred_list = []
-                    # print(x.shape)
-                    # print(y.shape)
+
                     for sub_x, sub_y in zip(sub_x_list, sub_y_list):
                         sub_x = sub_x.to(device)
                         sub_y = sub_y.to(device)
@@ -276,8 +271,6 @@ def run_experiment(config: dict):
 
 
 if __name__ == '__main__':
-    # wandb.init(project='Domain_partition_2D')
-    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # set up the dataset
     domain_size = 1
     resolution = 64
