@@ -1,7 +1,3 @@
-"""
-@author: Zongyi Li
-This file is the Fourier Neural Operator for 2D problem such as the Darcy Flow discussed in Section 5.2 in the [paper](https://arxiv.org/pdf/2010.08895.pdf).
-"""
 
 import torch.nn.functional as F
 from timeit import default_timer
@@ -85,7 +81,7 @@ class FNO2d(nn.Module):
         self.width = width
         self.padding = 9 # pad the domain if input is non-periodic
 
-        self.p = nn.Linear(4, self.width) # input channel is 3: (a(x, y), x, y)
+        self.p = nn.Linear(6, self.width) # input channel is 3: (a(x, y), x, y)
         self.conv0 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv1 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
         self.conv2 = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
@@ -247,38 +243,6 @@ class DomainPartitioning2d(nn.Module):
         super(DomainPartitioning2d, self).__init__()
         self.sub_size = subdomain_length
         self.fno = FNO2d(modes1, modes2, width)
-        # self.fno = UNet(1)
-
-    # def forward(self, x):
-    #     # for input data matrix x, partition the domain into num_partitions subdomains
-    #     # run FNO on each of the subdomains, and then combine the results
-    #     # re-partition the domain into num_partitions subdomains with a slight displacement
-    #     # run FNO on each of the subdomains, and then combine the results
-    #     # average the results from the two runs as the final output y
-        
-    #     # partition the domain into num_partitions subdomains
-    #     x_list_1 = self.get_partition_domain(x)
-    #     x_list_2 = self.get_partition_domain(x, displacement=self.sub_size//2)
-
-    #     # run FNO on each of the subdomains
-    #     y_list_1 = []
-    #     for x_sub in x_list_1:
-    #         y_sub = self.fno(x_sub)
-    #         y_list_1.append(y_sub)
-    #     y_list_2 = []
-    #     for x_sub in x_list_2:
-    #         y_sub = self.fno(x_sub)
-    #         y_list_2.append(y_sub)
-
-    #     y_1 = self.reconstruct_from_partitions(x, y_list_1, displacement=0)
-    #     y_2 = self.reconstruct_from_partitions(x, y_list_2, displacement=self.sub_size//2)
-
-    #     # average the results from the two runs as the final output y based on displacement
-    #     y = y_1.clone()
-    #     y[:, self.sub_size//2:, self.sub_size//2:, :] = (y_1[:, self.sub_size//2:, self.sub_size//2:, :] + y_2) / 2
-    #     # y[:, :self.sub_size//2, :self.sub_size//2, :] = y_1[:, :self.sub_size//2, :self.sub_size//2, :]
-
-    #     return y
 
     def forward(self, x):
         return self.fno(x)
@@ -307,18 +271,10 @@ class DomainPartitioning2d(nn.Module):
         # partition the domain into num_partitions subdomains of the same size
         x_list = []
         num_partitions_dim = x.shape[1] - self.sub_size + 1
-        # if the domain can be fully partitioned into subdomains of the same size
-        # if (x.shape[1] - displacement) % self.sub_size == 0:
+
         for i in range(num_partitions_dim):
             for j in range(num_partitions_dim):
                 x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
-        # if the domain cannot be fully partitioned into subdomains of the same size
-        # else:
-        #     for i in range(num_partitions_dim):
-        #         for j in range(num_partitions_dim):
-        #             x_list.append(x[:, i:i+self.sub_size, j:j+self.sub_size, :])
-        #     # add the last subdomain
-        #     x_list.append(x[:, (x.shape[1] - self.sub_size):x.shape[1], (x.shape[2] - self.sub_size):x.shape[2], :])
 
         return x_list
     
@@ -326,29 +282,14 @@ class DomainPartitioning2d(nn.Module):
     def reconstruct_from_partitions(self, x, x_list, displacement=0):
         # reconstruct the domain from the partitioned subdomains
         num_partitions_dim = int(np.sqrt(len(x_list)))
-        # print(num_partitions_dim)
         x, pad_size = self.symmetric_padding(x, mode='test')
-        # print(x.shape)
-        # print(pad_size)
         x = torch.zeros_like(x[:, 1:-1, 1:-1, 0].unsqueeze(-1))
-        # print(x.shape)
-        # print(x_list[0].shape)
         # if the domain can be fully partitioned into subdomains of the same size
         # if len(x_list) == num_partitions_dim**2:
         for i in range(num_partitions_dim):
             for j in range(num_partitions_dim):
                 x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
-        # if the domain cannot be fully partitioned into subdomains of the same size
-        # else:
-        #     for i in range(num_partitions_dim):
-        #         for j in range(num_partitions_dim):
-        #             x[:, i:i+self.sub_size-2, j:j+self.sub_size-2, :] = x_list[i*num_partitions_dim + j][:, 1:-1, 1:-1, :]
-        #     # # add the last subdomain
-        #     x[:, (x.shape[1] - self.sub_size + 2):x.shape[1], (x.shape[2] - self.sub_size + 2):(x.shape[2]), :] = x_list[-1][:, 1:-1, 1:-1, :]
 
-        # remove the padding
-        # print(pad_size)
-        # print(x.shape)
         if pad_size == 1:
             return x
         else:
