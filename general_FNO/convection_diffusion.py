@@ -45,7 +45,7 @@ class ConvectionDiffusion:
         self.d = d
         self.wave_direction = wave_direction
         self.wave_frequency = wave_frequency
-        self.domain_size = domain_size
+        self.domain_size = domain_size 
         self.resolution = resolution
         # self.num_samples = num_samples
         self.num_time_steps = num_time_steps
@@ -78,7 +78,7 @@ class ConvectionDiffusion:
 
 
 class ConvectionDiffusionDataset(torch.utils.data.Dataset):
-    def __init__(self, frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed=0, d=0.001):
+    def __init__(self, frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed=0, d=0.001, c=0.5):
         """
         generate a dataset of 2D simulations of the convection-diffusion equation
         :param domain_size: size of the domain (square domain)
@@ -86,6 +86,8 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         :param dt: time step size
         :param num_samples: number of samples to generate
         :param seed: random seed
+        :param d: diffusion coefficient
+        :param c: convection coefficient
         """
         self.domain_size = domain_size
         self.resolution = resolution
@@ -95,6 +97,7 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         self.seed = seed
         self.frequency = frequency
         self.d = d
+        self.c = c
 
         self._set_up()
 
@@ -107,7 +110,7 @@ class ConvectionDiffusionDataset(torch.utils.data.Dataset):
         solutions = []
         for i in range(self.num_samples):
             # c = np.random.uniform(0.1, 1)
-            c = 0.5
+            c = self.c
             # d = np.random.uniform(0.1, 1)
             d = self.d
             direction = np.random.uniform(0, np.pi)
@@ -155,11 +158,17 @@ def run_experiment(config: dict):
     val_ds = config['val_ds']
     test_ds = config['test_ds']
 
+    c = 0.5
+
     # initialize model
     # dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed)
     train_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.8 * num_samples), seed, d=train_ds)
     val_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=val_ds)
     test_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=test_ds)
+
+    # compute window size according to CFL condition
+    window_size = int(np.ceil(c * dt / (domain_size / resolution)))
+    wandb.config['window_size'] = window_size
     model = DomainPartitioning2d(modes, modes, width, window_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_iterations)
