@@ -158,17 +158,17 @@ def run_experiment(config: dict):
     val_ds = config['val_ds']
     test_ds = config['test_ds']
 
-    c = 0.5
+    c = 1
 
     # initialize model
     # dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, num_samples, seed)
-    train_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.8 * num_samples), seed, d=train_ds)
-    val_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=val_ds)
-    test_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=test_ds)
+    train_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.8 * num_samples), seed, d=train_ds, c=c)
+    val_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=val_ds, c=c)
+    test_dataset = ConvectionDiffusionDataset(data_frequency, domain_size, resolution, num_time_steps, dt, int(0.1 * num_samples), seed, d=test_ds, c=c)
 
     # compute window size according to CFL condition
     window_size = int(np.ceil(c * dt / (domain_size / resolution)))
-    wandb.config['window_size'] = window_size
+    wandb.config.update({'window_size': window_size}, allow_val_change=True)
     model = DomainPartitioning2d(modes, modes, width, window_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_iterations)
@@ -291,9 +291,9 @@ if __name__ == '__main__':
     mode = 8
 
     width = 20
-    data_frequency = [3, 4, 5]
-    window_size = [8, 10, 12, 16, 20]
-    num_iterations = 50
+    data_frequency = [4, 6, 8]
+    window_size = [8]
+    num_iterations = 20
 
     train_ds = 0.001
     val_ds = 0.001
