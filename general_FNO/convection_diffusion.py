@@ -293,7 +293,7 @@ if __name__ == '__main__':
     width = 20
     data_frequency = [4, 6, 8]
     c = [0.5, 1, 2, 4]
-    window_size = 8
+    # window_size = 8
     num_iterations = 20
 
     train_ds = 0.001
@@ -312,7 +312,8 @@ if __name__ == '__main__':
                 seed=seed,
                 modes=mode,
                 width=width,
-                window_size=window_size,
+                # compute window size according to CFL condition
+                window_size=max(int(speed*dt/domain_size*resolution), 5),
                 num_iterations=num_iterations,
                 data_frequency=frequency,
                 train_ds=train_ds,
